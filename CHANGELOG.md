@@ -8,6 +8,11 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- Record the successful 0.6.2 Linux and Windows release gates and final test
+  counts in the end-to-end review.
+
 ## [0.6.2] - 2026-09-09
 
 Includes the template, table and document-safety update. The 0.6.0 and 0.6.1 tags

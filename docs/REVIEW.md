@@ -16,7 +16,7 @@ of automated test results.
 | Shared document logic | 128 passing unit tests: envelopes, accessibility, proofing, references, mail merge |
 | Document formats | 80 passing unit tests: DOCX import/export, table dimensions/styles, malformed files, RTF Unicode/code pages, HTML, merge fields |
 | Renderer and browser-host logic | 186 passing unit tests: editor behavior, all template schemas, styled template round-trips, switching table styles after DOCX reload, table/paragraph behavior, search, browser storage and native atomic-write failure paths |
-| Renderer features | 288 unique passing tests across the complete run (282), four print-layout follow-ups and two fallback-font ribbon cases exercise File, editing, ribbon state, keyboard commands, Insert/Layout/Review/View, references, tables, mailings, templates, edge cases, save races, import errors and actual PDF pagination; nine opt-in screenshot generators are skipped in the normal suite |
+| Renderer features | All 288 tests pass together in the final Linux release gate: File, editing, ribbon state, keyboard commands, Insert/Layout/Review/View, references, tables, mailings, templates, edge cases, save races, import errors, actual PDF pagination and both fallback-font ribbon regressions; nine opt-in screenshot generators are skipped in the normal suite |
 | Production browser and website | 9 passing tests: real OPFS DOCX save/reopen, preferences, copy/rename/delete, version history, browser PDF print route, all nine tour images, Templates keyboard/phone-width access, installer links and release-API failure fallback |
 | Visual regression | 27 passing Windows screenshot comparisons; the redesigned gallery baseline was inspected and updated, with all other baselines retained |
 | Native Electron | 18 passing tests cover four dictionaries, persistence, close guard, command-line opening, version isolation, file operations, concurrent copying, print callback/error/page-range behavior, three styled template PDF exports and a long multi-page PDF through File > Export |
@@ -41,6 +41,13 @@ comparisons passed with no baseline changes. The new test applies Arial and
 wider letter spacing to the entire panel at 900px, checks all control bounds,
 and uses the style and shading menus. The two-row layout was visually inspected.
 Typechecking, the desktop build and canonical release-note generation passed.
+
+The final [0.6.2 release gates](https://github.com/DandanITman/OfficeWrite/actions/runs/34416486352)
+passed from commit e64ccb4: Linux ran all 394 unit tests, nine production-browser
+and website tests, 288 renderer tests and 18 native Electron tests; Windows ran
+all 27 visual comparisons and 18 native Electron tests. Both narrow-window
+regressions passed on Linux. The source builds, type checks, site asset checks
+and release-note validation passed as well.
 
 ## Corrections made
 
