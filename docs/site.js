@@ -4,15 +4,10 @@ const FALLBACK_RELEASES = `https://github.com/${REPO}/releases/latest`;
 async function loadLatestRelease() {
   const btnTop = document.getElementById('download-btn');
   const btnBottom = document.getElementById('download-btn-bottom');
-  const meta = document.getElementById('download-meta');
 
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`);
     if (!res.ok) {
-      if (res.status === 404) {
-        showReleaseFallback('Browse releases for Windows downloads.');
-        return;
-      }
       throw new Error(`Release lookup failed: ${res.status}`);
     }
 
@@ -31,22 +26,17 @@ async function loadLatestRelease() {
       btn.href = href;
       if (btn === btnBottom) btn.textContent = label;
     });
-
-    if (meta) meta.textContent = asset
-      ? `Latest: v${release.tag_name.replace(/^v/, '')} · Windows installer`
-      : `Release ${release.tag_name}: open the Releases page to download`;
   } catch {
-    showReleaseFallback('Open the latest release for Windows downloads.');
+    showReleaseFallback();
   }
 
-  function showReleaseFallback(message) {
+  function showReleaseFallback() {
     [btnTop, btnBottom].forEach((btn) => {
       if (btn) {
         btn.href = FALLBACK_RELEASES;
         btn.textContent = 'View releases';
       }
     });
-    if (meta) meta.textContent = message;
   }
 }
 

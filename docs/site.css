@@ -211,10 +211,6 @@ code {
   margin: 0;
 }
 
-.hero-actions .download-meta {
-  max-width: 38ch;
-}
-
 #tour {
   padding-top: 32px;
 }
@@ -271,13 +267,6 @@ code {
   font-size: 1.04rem;
 }
 
-.download-meta {
-  font-size: 0.86rem;
-  color: var(--ink-faint);
-  /* Last line of the hero copy now that the three facts sit below the hero. */
-  margin: 0;
-}
-
 /* A full-width strip under the hero, three across. */
 .hero-facts {
   list-style: none;
@@ -324,7 +313,6 @@ code {
   box-shadow: var(--shadow-lift);
 }
 
-.hero-shot figcaption,
 .tour-stage figcaption {
   margin-top: 10px;
   font-size: 0.85rem;

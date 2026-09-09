@@ -12,6 +12,21 @@ Attribution:
   his name, and a tool credit in the history is noise a reader has to filter.
 - Code comments describe the code, never who or what wrote it.
 
+Commit messages and pull requests:
+- Write for a reader who has not seen the conversation. Use a concise title
+  describing the actual change and a clear body covering all material changes,
+  why they were needed, and the resulting behavior.
+- Include relevant validation results and any known limitations. Say when
+  checks were not run; never imply that unperformed checks passed.
+- Describe the final committed work, not the request or the process of receiving
+  it. Never copy, quote, or paste Daniel's prompt or conversation into a commit
+  message, pull request, or other published change description.
+- Before committing or publishing, read the complete staged diff and the change
+  description together. Ensure the description is accurate, complete, coherent,
+  and understandable on its own; remove vague wording and unrelated details.
+- Match the level of detail to the change. Small changes can be brief, but
+  substantial changes need enough explanation to make review practical.
+
 Project context:
 - This is an npm workspace: Electron + React + TipTap in apps/desktop,
   shared document logic in packages/core, and import/export in packages/openxml.

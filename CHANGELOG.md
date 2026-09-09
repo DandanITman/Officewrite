@@ -8,6 +8,21 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Refresh the website headline and introduction to emphasize a modern, free
+  word processor; broaden the About section to include office workers and
+  creatives and explain the interface's positioning against older alternatives.
+- Remove the hero screenshot caption and release-status line, along with their
+  unused styles and script updates. Keep direct installer links and release-page
+  fallbacks on the download buttons.
+
+### Documentation
+
+- Require self-contained commit and pull-request descriptions covering material
+  changes, their purpose, validation, and limitations, without copying prompts
+  or conversation text into the published record.
+
 ## [0.5.0] - 2026-09-09
 
 First public Windows installer release from the restarted repository.
