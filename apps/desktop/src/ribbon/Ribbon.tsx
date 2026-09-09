@@ -339,6 +339,7 @@ export function Ribbon({
           ref={panelRef}
           className={`ribbon-panel office-ribbon-panel${density === 'compact' ? ' is-compact' : ''}`}
           role="tabpanel"
+          data-ribbon-tab={activeTab}
           onMouseDown={preserveEditorFocus}
         >
           <Panel editor={editor} state={state} actions={actions} flags={flags} />

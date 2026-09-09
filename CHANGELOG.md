@@ -8,10 +8,11 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.6.1] - 2026-09-09
+## [0.6.2] - 2026-09-09
 
-Includes the template, table and document-safety update. The 0.6.0 tag did not
-publish an installer because release checks found a narrow-window ribbon overlap.
+Includes the template, table and document-safety update. The 0.6.0 and 0.6.1 tags
+did not publish installers because release checks found narrow-window ribbon
+overlap and clipped table controls with Linux fallback fonts.
 
 ### Added
 
@@ -46,6 +47,8 @@ publish an installer because release checks found a narrow-window ribbon overlap
 - Keep ribbon tabs separate from Comments, editing mode and layout controls in
   narrow windows and with wider fallback fonts. Overflowing tabs remain reachable
   without overlapping the actions.
+- Wrap complete Table Layout control groups onto another row when needed,
+  keeping table styles and cell shading inside the visible panel with wider fonts.
 - Render the selected table style in the resizable editor view. Apply shading
   across mixed header/body cell selections and preserve table formatting in
   document export and import. Keep automatic style colors separate from manual
@@ -79,7 +82,7 @@ publish an installer because release checks found a narrow-window ribbon overlap
 ### Build and testing
 
 - Synchronize the application, workspace manifests, lockfile and website version
-  for the Windows 0.6.1 release; retain the failed 0.6.0 tag unchanged.
+  for the Windows 0.6.2 release; retain the failed 0.6.0 and 0.6.1 tags unchanged.
 - Extend regression coverage for table operations, template creation and DOCX
   round-trips, file-write failures, browser file identity and website navigation.
   Allow the native suite to target a packaged executable with isolated user data.

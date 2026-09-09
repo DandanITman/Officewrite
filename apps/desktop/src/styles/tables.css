@@ -5,6 +5,18 @@
   padding: 3px 4px;
 }
 .ribbon-tab[data-tab='tableLayout'] { white-space: nowrap; flex-shrink: 0; }
+
+/* Keep whole tool groups usable when fonts or window size exhaust one row. */
+.ribbon:not(.is-single-line) .office-ribbon-panel[data-ribbon-tab='tableLayout'] {
+  flex-wrap: wrap;
+  max-height: none;
+  align-content: flex-start;
+  row-gap: 4px;
+}
+.ribbon:not(.is-single-line) .office-ribbon-panel[data-ribbon-tab='tableLayout'] > .rb-group {
+  min-height: 94px;
+}
+
 .table-style-options { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 8px; }
 .table-style-option { display: flex; align-items: center; gap: 7px; padding: 6px; text-align: left; font-size: 11px; border: 1px solid transparent; border-radius: 4px; color: var(--text-primary); background: transparent; }
 .table-style-option.is-active, .table-style-option:hover { border-color: var(--accent); background: var(--bg-hover); }

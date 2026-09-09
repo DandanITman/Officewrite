@@ -169,6 +169,28 @@ test.describe('Table tools', () => {
     await expect(page.getByTestId('table-add-row-after')).toBeVisible();
   });
 
+  test('the entire table panel reflows for wider fallback-font metrics', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 860 });
+    await page.addStyleTag({ content: '[role="tabpanel"], [role="tabpanel"] * { font-family: Arial, sans-serif !important; letter-spacing: 1.5px !important; }' });
+    await insertTable(page);
+    await switchRibbonTab(page, 'tableLayout');
+    const panel = page.getByRole('tabpanel');
+    await expect.poll(() => panel.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return [...element.querySelectorAll('button, input')].filter((control) => {
+        const bounds = control.getBoundingClientRect();
+        return bounds.width > 0 && (bounds.left < box.left - 1 || bounds.right > box.right + 1 || bounds.top < box.top - 1 || bounds.bottom > box.bottom + 1);
+      }).map((control) => control.getAttribute('data-testid') || control.textContent);
+    })).toEqual([]);
+    const groupRows = await panel.locator(':scope > .rb-group').evaluateAll(groups => new Set(groups.map(group => Math.round(group.getBoundingClientRect().top))).size);
+    expect(groupRows).toBeGreaterThan(1);
+    await page.getByTestId('table-style-gallery').click();
+    await page.getByTestId('table-style-bandedRows').click();
+    await expect(editor(page).locator('table')).toHaveAttribute('data-table-style', 'bandedRows');
+    await page.getByTitle('Cell Shading', { exact: true }).click();
+    await expect(page.locator('.color-picker-popover')).toBeVisible();
+  });
+
   test('TC-TBL-001: the table tools appear only when the caret is in a table', async ({ page }) => {
     await switchRibbonTab(page, 'insert');
     await expect(page.getByTestId('ribbon-tab-tableLayout')).toHaveCount(0);
