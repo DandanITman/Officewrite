@@ -1,5 +1,5 @@
 const REPO = 'DandanITman/OfficeWrite';
-const FALLBACK_RELEASES = `https://github.com/${REPO}/releases`;
+const FALLBACK_RELEASES = `https://github.com/${REPO}/releases/latest`;
 
 async function loadLatestRelease() {
   const btnTop = document.getElementById('download-btn');
@@ -10,7 +10,7 @@ async function loadLatestRelease() {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`);
     if (!res.ok) {
       if (res.status === 404) {
-        showReleaseFallback('The first release in this repository is not published yet. Browse the source or try the browser version.');
+        showReleaseFallback('Browse releases for Windows downloads.');
         return;
       }
       throw new Error(`Release lookup failed: ${res.status}`);
@@ -36,7 +36,7 @@ async function loadLatestRelease() {
       ? `Latest: v${release.tag_name.replace(/^v/, '')} · Windows installer`
       : `Release ${release.tag_name}: open the Releases page to download`;
   } catch {
-    showReleaseFallback('Could not check the latest release. Open the Releases page to see available downloads.');
+    showReleaseFallback('Open the latest release for Windows downloads.');
   }
 
   function showReleaseFallback(message) {

@@ -33,9 +33,10 @@ app makes no network requests of its own.
 
 ## Try it
 
-This repository starts with a fresh source history. Windows installers will
-appear on the [Releases page](https://github.com/DandanITman/OfficeWrite/releases)
-when a release is published. The previous repository is preserved at
+**[Download the Windows installer](https://github.com/DandanITman/OfficeWrite/releases/latest)**
+or [write in your browser](https://officewrite.com/app/).
+
+This repository starts with a fresh source history. The previous repository is preserved at
 [OfficeWrite-Legacy2](https://github.com/DandanITman/OfficeWrite-Legacy2).
 
 **Want to run the code?**

@@ -167,13 +167,8 @@ code {
 /* Hero ------------------------------------------------------------------ */
 .hero {
   display: grid;
-  /* The two columns are close in width so the copy wraps to fewer, longer
-     lines. A narrow copy column made the headline four lines deep, which left
-     the shot beside it floating in a block of white. */
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
-  gap: 40px;
-  /* Top, not centre. Centring a short shot against tall copy padded the space
-     above the screenshot with nothing. */
+  gap: 20px 40px;
   align-items: start;
   max-width: 1240px;
   margin: 0 auto;
@@ -197,6 +192,31 @@ code {
   font-size: 1.1rem;
   color: var(--ink-soft);
   max-width: 56ch;
+}
+
+.hero-copy .lede {
+  margin-bottom: 0;
+}
+
+.hero-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+
+.hero-actions .cta-row {
+  margin: 0;
+}
+
+.hero-actions .download-meta {
+  max-width: 38ch;
+}
+
+#tour {
+  padding-top: 32px;
 }
 
 .cta-row {

@@ -8,6 +8,10 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-09
+
+First public Windows installer release from the restarted repository.
+
 ### Fixed
 
 - Preserve unsaved work when creating or opening another document, keep the
@@ -35,6 +39,10 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   first creating an empty file through the disk picker.
 - Handle missing releases and API failures on the website, fix nested error-page
   assets, and support consistent keyboard navigation through the feature tour.
+- Move landing-page download controls into a shared row below the introduction
+  and screenshot, reducing empty space beneath the image and before the tour.
+- Link both website download buttons to the latest release before its API loads,
+  and keep release lookup messages short.
 
 ### Build and development
 
@@ -51,6 +59,8 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   and renderer failure coverage, verify complete website build assets, correct
   visual artifact collection, and fail when native QA cannot run.
 - Require explicit opt-in before browser tests reuse an existing local server.
+- Build Windows installers without implicit publication from the packaging tool;
+  the release workflow owns uploading the installer and changelog.
 
 ### Documentation
 
@@ -58,10 +68,15 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   guidance, testing coverage, and development/publishing instructions.
 - Record end-to-end review results, outstanding compatibility limits, and the
   existing editor dependency advisory in docs/REVIEW.md.
+- Point the README to the Windows installer and live browser app.
 
-## [0.5.0]
+### Known limitations
 
-Initial public release.
+- Existing TipTap dependencies are affected by GHSA-cp6q-959q-f8rh. The upstream
+  fix requires a major-version migration; application-specific exploitability
+  has not been established. See docs/REVIEW.md for the dependency review.
+- Physical printer output, Windows installer installation/uninstallation, and
+  external LibreOffice conversion have not been exercised in the release review.
 
 ### Added
 
