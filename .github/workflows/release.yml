@@ -1,0 +1,178 @@
+name: Release Windows build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing version tag to release (for example v0.5.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve immutable release source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      tag: ${{ steps.source.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate release tag
+        id: source
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::Release tag must have the form v1.2.3.'
+            exit 1
+          fi
+          sha=$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")
+          if ! git merge-base --is-ancestor "$sha" refs/remotes/origin/main; then
+            echo '::error::The release tag must point to a commit on main.'
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+  qa-regression:
+    name: QA gate (regression)
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate manifest versions and release notes
+        env:
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const version = process.env.RELEASE_TAG.slice(1);
+          for (const file of ['package.json', 'apps/desktop/package.json', 'packages/core/package.json', 'packages/openxml/package.json']) {
+            if (JSON.parse(readFileSync(file, 'utf8')).version !== version) throw new Error(`${file} does not match ${process.env.RELEASE_TAG}`);
+          }
+          NODE
+          node scripts/generate-release-notes.mjs "$RELEASE_TAG"
+      - name: Install dependencies
+        run: npm ci
+      - name: Em dash check
+        run: npm run check:em-dashes
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build desktop
+        run: npm run build
+      - name: Build and test browser host
+        run: npm run test:web
+      - name: Verify complete site artifact
+        run: node scripts/verify-pages.mjs --built
+      - name: Unit tests
+        run: npm run test:unit
+      - name: End-to-end tests
+        run: npm run test:e2e
+        env:
+          CI: true
+      - name: Electron tests
+        run: xvfb-run -a npm run test:electron
+        env:
+          CI: true
+      - name: Upload regression failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-regression-failures
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+  qa-visual:
+    name: QA gate (visual and Windows host)
+    needs: resolve
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+      - name: Visual regression tests
+        run: npm run test:visual
+        env:
+          CI: true
+      - name: Windows Electron tests
+        run: npm run test:electron
+        env:
+          CI: true
+      - name: Upload Windows failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-failures
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+  release:
+    name: Build and publish release
+    needs: [resolve, qa-regression, qa-visual]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate release notes
+        env:
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+        run: node scripts/generate-release-notes.mjs $env:RELEASE_TAG --output release-notes.md
+      - name: Build Windows installer
+        run: npm run package
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
+          target_commitish: ${{ needs.resolve.outputs.sha }}
+          name: Officewrite ${{ needs.resolve.outputs.tag }}
+          body_path: release-notes.md
+          files: |
+            apps/desktop/release/*.exe
+            CHANGELOG.md
+          fail_on_unmatched_files: true
+          generate_release_notes: false

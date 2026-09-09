@@ -1,0 +1,21 @@
+node_modules/
+dist/
+dist-electron/
+# Installer build output.
+apps/desktop/release/
+*.log
+.DS_Store
+Thumbs.db
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Built by `npm run build:web` into the Pages site; produced in CI, not committed.
+docs/app/
+
+# Credentials and machine-local overrides never belong in source control.
+.env
+.env.*
+!.env.example
+.codex/auth.json
+.codex/config.local.toml

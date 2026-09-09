@@ -1,0 +1,6 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+model = "gpt-6-astra"
+model_reasoning_effort = "high"
+
+[agents]
+max_threads = 3

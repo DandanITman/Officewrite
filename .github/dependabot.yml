@@ -1,0 +1,48 @@
+version: 2
+
+# Officewrite is an npm workspace monorepo: the real dependencies live in
+# apps/desktop and packages/*, but a single package-lock.json at the root
+# resolves them all. Dependabot follows that lockfile from "/", so one npm
+# entry covers every workspace.
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    # Most of what gets flagged here (nanoid, @babel/core, linkify-it) is
+    # transitive. Security-only jobs refuse to touch subdependencies and error
+    # out instead; scheduled version updates refresh the whole lockfile, which
+    # is what actually clears those advisories.
+    versioning-strategy: increase-if-necessary
+    groups:
+      # One PR per weekly sweep rather than ten, so the regression suite runs
+      # once against the combined tree.
+      production-dependencies:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      development-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Electron majors drag Chromium and the packaging chain with them, and
+      # release.yml builds the Windows installer off this. Bump it
+      # deliberately, not on a Monday morning.
+      - dependency-name: electron
+        update-types:
+          - version-update:semver-major
+
+  # Keep workflow action runtimes current alongside application dependencies.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
