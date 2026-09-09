@@ -1,153 +1,104 @@
+import type { CSSProperties, ReactNode } from 'react';
 import type { Template } from '@officewrite/core';
 
-/**
- * A real miniature of a template's first page.
- *
- * The previous thumbnails drew each block as a grey bar. That told you a
- * template had a heading and four paragraphs, but not whether it was an invoice
- * or a wedding invitation - which is the only question anybody asks of a template
- * gallery. These render the template's own words, at the template's own
- * alignment and emphasis, so the card shows what you are about to get.
- *
- * Rendered at two sizes from one component: `thumb` for the cards and `page` for
- * the preview dialog. Sharing the renderer is the point - a card that disagreed
- * with the preview beside it would be worse than no card at all.
- */
-
-/** The node shapes a template can hold. Read defensively: TEMPLATES is wide. */
 type PreviewNode = {
   type?: string;
   text?: string;
-  attrs?: { level?: number; textAlign?: string; checked?: boolean; styleId?: string };
-  marks?: Array<{ type: string }>;
+  attrs?: Record<string, unknown>;
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
   content?: readonly PreviewNode[];
 };
 
-/** How many top-level blocks a thumbnail shows before the page is full. */
-const THUMB_BLOCK_LIMIT = 14;
-/** The preview dialog shows a whole page's worth. */
-const PAGE_BLOCK_LIMIT = 60;
+const em = (pixels: unknown) => `${Number(pixels) / (11 * 4 / 3)}em`;
 
-function alignmentOf(node: PreviewNode): React.CSSProperties {
-  const align = node.attrs?.textAlign;
-  if (align === 'center' || align === 'right' || align === 'justify') return { textAlign: align };
-  return {};
+/** Use the formatting in the document itself, including empty shaded paragraphs. */
+function paragraphStyle(node: PreviewNode): CSSProperties {
+  const attrs = node.attrs ?? {};
+  const style: CSSProperties = {};
+  if (['left', 'center', 'right', 'justify'].includes(String(attrs.textAlign))) style.textAlign = attrs.textAlign as CSSProperties['textAlign'];
+  if (attrs.spaceBefore != null) style.marginTop = em(attrs.spaceBefore);
+  if (attrs.spaceAfter != null) style.marginBottom = em(attrs.spaceAfter);
+  if (attrs.lineHeight) style.lineHeight = String(attrs.lineHeight);
+  if (attrs.shading) { style.backgroundColor = String(attrs.shading); style.paddingBlock = '0.3em'; }
+  if (attrs.borderColor) {
+    const border = `0.16em solid ${String(attrs.borderColor)}`;
+    const side = attrs.borderSides ?? 'left';
+    if (side === 'bottom') style.borderBottom = border;
+    else if (side === 'top') style.borderTop = border;
+    else if (side === 'all' || side === 'outside') style.border = border;
+    else style.borderLeft = border;
+    style.paddingLeft = '0.6em';
+  }
+  if (attrs.indentLevel) style.marginLeft = em(Number(attrs.indentLevel) * 36);
+  return style;
 }
 
-/** Inline runs, keeping bold and italic - the memo and invoice lean on them. */
-function renderInline(nodes: readonly PreviewNode[] | undefined): React.ReactNode[] {
-  if (!nodes) return [];
-  return nodes.map((node, index) => {
+function renderInline(nodes: readonly PreviewNode[] | undefined): ReactNode[] {
+  return (nodes ?? []).map((node, index) => {
     if (node.type === 'hardBreak') return <br key={index} />;
-    const text = node.text ?? '';
-    if (!text) return null;
-
-    const marks = new Set((node.marks ?? []).map((mark) => mark.type));
-    let element: React.ReactNode = text;
-    if (marks.has('bold')) element = <strong key="b">{element}</strong>;
-    if (marks.has('italic')) element = <em key="i">{element}</em>;
-    if (marks.has('underline')) element = <u key="u">{element}</u>;
-    return <span key={index}>{element}</span>;
+    if (!node.text) return null;
+    const style: CSSProperties = {};
+    for (const mark of node.marks ?? []) {
+      if (mark.type === 'bold') style.fontWeight = 700;
+      if (mark.type === 'italic') style.fontStyle = 'italic';
+      if (mark.type === 'underline') style.textDecoration = 'underline';
+      if (mark.type === 'textStyle') {
+        if (mark.attrs?.fontFamily) style.fontFamily = String(mark.attrs.fontFamily);
+        if (mark.attrs?.fontSize) style.fontSize = `${parseFloat(String(mark.attrs.fontSize)) / 11}em`;
+        if (mark.attrs?.color) style.color = String(mark.attrs.color);
+      }
+    }
+    return <span key={index} style={style}>{node.text}</span>;
   });
 }
 
-function renderBlock(node: PreviewNode, key: number): React.ReactNode {
-  const type = node.type;
-
-  if (type === 'heading') {
-    const level = node.attrs?.level ?? 1;
-    return (
-      <div key={key} className={`tp-h tp-h${level}`} style={alignmentOf(node)}>
-        {renderInline(node.content)}
-      </div>
-    );
+function renderBlock(node: PreviewNode, key: number): ReactNode {
+  if (node.type === 'bulletList' || node.type === 'orderedList' || node.type === 'taskList') {
+    return <div key={key} className="tp-list">
+      {(node.content ?? []).map((item, index) => <div className="tp-li" key={index}>
+        <span className="tp-marker" aria-hidden>{node.type === 'orderedList' ? `${index + Number(node.attrs?.start ?? 1)}.` : node.type === 'taskList' ? item.attrs?.checked ? '☑' : '☐' : '•'}</span>
+        <div className="tp-li-text">{item.content?.map(renderBlock)}</div>
+      </div>)}
+    </div>;
   }
-
-  if (type === 'bulletList' || type === 'orderedList' || type === 'taskList') {
-    const marker = type === 'orderedList' ? 'tp-ol' : type === 'taskList' ? 'tp-tasks' : 'tp-ul';
-    return (
-      <div key={key} className={`tp-list ${marker}`}>
-        {(node.content ?? []).map((item, index) => (
-          <div className="tp-li" key={index}>
-            <span className="tp-marker" aria-hidden>
-              {type === 'orderedList' ? `${index + 1}.` : type === 'taskList' ? '☐' : '•'}
-            </span>
-            <span className="tp-li-text">
-              {(item.content ?? []).map((child, childIndex) => (
-                <span key={childIndex}>{renderInline(child.content)}</span>
-              ))}
-            </span>
-          </div>
-        ))}
-      </div>
-    );
+  if (node.type === 'table') {
+    const widths = node.content?.[0]?.content?.map(cell => Number((cell.attrs?.colwidth as number[] | undefined)?.[0] ?? 1)) ?? [];
+    const total = widths.reduce((sum, width) => sum + width, 0);
+    return <table key={key} className="tp-table">
+      {total > 0 && <colgroup>{widths.map((width, index) => <col key={index} style={{ width: `${100 * width / total}%` }} />)}</colgroup>}
+      <tbody>{node.content?.map((row, rowIndex) => <tr key={rowIndex}>
+        {row.content?.map((cell, cellIndex) => {
+          const Cell = cell.type === 'tableHeader' ? 'th' : 'td';
+          return <Cell key={cellIndex} colSpan={Number(cell.attrs?.colspan ?? 1)} rowSpan={Number(cell.attrs?.rowspan ?? 1)} style={{ backgroundColor: cell.attrs?.shading ? String(cell.attrs.shading) : undefined }}>
+            {cell.content?.map(renderBlock)}
+          </Cell>;
+        })}
+      </tr>)}</tbody>
+    </table>;
   }
-
-  if (type === 'table') {
-    const rows = node.content ?? [];
-    return (
-      <table key={key} className="tp-table">
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {(row.content ?? []).map((cell, cellIndex) => {
-                // A header cell is a different node type, not an attribute, so
-                // the miniature can shade it the way the document does.
-                const isHead = cell.type === 'tableHeader';
-                const text = (cell.content ?? []).map((child, i) => (
-                  <span key={i}>{renderInline(child.content)}</span>
-                ));
-                return isHead ? (
-                  <th key={cellIndex}>{text}</th>
-                ) : (
-                  <td key={cellIndex}>{text}</td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-
-  if (type === 'horizontalRule') return <div key={key} className="tp-rule" />;
-  if (type === 'pageBreak') return <div key={key} className="tp-page-break" />;
-
-  const inline = renderInline(node.content);
-  // An empty paragraph is spacing in the document, so it is spacing here too.
-  if (inline.length === 0) return <div key={key} className="tp-gap" />;
-
-  const subtitle = node.attrs?.styleId === 'subtitle' ? ' tp-subtitle' : '';
-  return (
-    <div key={key} className={`tp-p${subtitle}`} style={alignmentOf(node)}>
-      {inline}
-    </div>
-  );
+  if (node.type === 'horizontalRule') return <div key={key} className="tp-rule" />;
+  const heading = node.type === 'heading';
+  return <div key={key} className={heading ? `tp-h tp-h${node.attrs?.level ?? 1}` : `tp-p${node.attrs?.styleId === 'subtitle' ? ' tp-subtitle' : ''}`} style={paragraphStyle(node)}>
+    {node.content?.length ? renderInline(node.content) : <br />}
+  </div>;
 }
 
-export function TemplatePreview({
-  template,
-  variant = 'thumb',
-}: {
-  template: Template;
-  variant?: 'thumb' | 'page';
-}) {
-  const blocks = (template.content.content ?? []) as readonly PreviewNode[];
-  const limit = variant === 'thumb' ? THUMB_BLOCK_LIMIT : PAGE_BLOCK_LIMIT;
-  const shown = blocks.slice(0, limit);
-
-  if (shown.length === 0 || shown.every((node) => !node.content)) {
-    return (
-      <div className={`tp-page tp-${variant} tp-blank`} data-testid={`template-preview-${template.id}`}>
-        <span className="tp-blank-label">Blank page</span>
-      </div>
-    );
+export function TemplatePreview({ template, variant = 'thumb' }: { template: Template; variant?: 'thumb' | 'page' }) {
+  const pages: PreviewNode[][] = [[]];
+  for (const node of template.content.content as PreviewNode[]) {
+    if (node.type === 'pageBreak') pages.push([]);
+    else pages[pages.length - 1].push(node);
   }
-
-  return (
-    <div className={`tp-page tp-${variant}`} data-testid={`template-preview-${template.id}`}>
-      {shown.map((node, index) => renderBlock(node, index))}
-      {blocks.length > limit && <div className="tp-more" aria-hidden />}
-    </div>
-  );
+  const firstPage = pages[0];
+  if (template.id === 'blank') return <div className={`tp-page tp-${variant} tp-blank`} data-testid={`template-preview-${template.id}`}><span className="tp-blank-label">Blank page</span></div>;
+  if (variant === 'thumb') return <div className="tp-page tp-thumb" data-testid={`template-preview-${template.id}`} aria-hidden="true">
+    {firstPage.slice(0, 14).map(renderBlock)}
+    <div className="tp-more" />
+  </div>;
+  return <div className="tp-document" data-testid={`template-preview-${template.id}`}>
+    {pages.map((page, index) => <section className="tp-preview-sheet" key={index} aria-label={`Template page ${index + 1}`}>
+      {pages.length > 1 && <div className="tp-page-label">Page {index + 1} of {pages.length}</div>}
+      <div className="tp-page tp-full">{page.map(renderBlock)}</div>
+    </section>)}
+  </div>;
 }

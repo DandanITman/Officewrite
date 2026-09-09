@@ -8,8 +8,29 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-09
+
+### Added
+
+- Add Project Brief, Decision Log, Project Handover, Standard Operating Procedure,
+  Creative Brief, Portfolio Case Study, Editorial Calendar and Story Outline.
+  The catalogue now has 39 designed templates plus a blank page.
+- Add a Templates tab to the website tour with an actual gallery screenshot,
+  accessible tab/panel relationships, keyboard navigation and narrow-screen
+  coverage.
+- Add keyboard operation, explicit row/column counts and a header-row choice to
+  the table picker, plus clearer table selection and editing guidance.
+
 ### Changed
 
+- Refresh all 31 existing document templates with typography, section rules,
+  spacing, callouts, shaded tables and useful column widths. Improve report and
+  letter content, provide a two-page greeting card, and correct card/flyer
+  descriptions to match their layouts.
+- Move the gallery's blank-document action into its header so templates appear
+  sooner. Add Creative filtering, result counts, category labels and clear
+  filters. Previews reflect document formatting and include all explicit pages;
+  the preview dialog traps keyboard focus and returns it when closed.
 - Refresh the website headline and introduction to emphasize a modern, free
   word processor; broaden the About section to include office workers and
   creatives and explain the interface's positioning against older alternatives.
@@ -17,11 +38,60 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   unused styles and script updates. Keep direct installer links and release-page
   fallbacks on the download buttons.
 
+### Fixed
+
+- Render the selected table style in the resizable editor view. Apply shading
+  across mixed header/body cell selections and preserve table formatting in
+  document export and import. Keep automatic style colors separate from manual
+  cell shading so switching styles still works after reopening a DOCX, and retain
+  pasted RGB colors on export.
+- Correct row and column sizing for merged cells, row spans and zoom. Fit tables
+  to the available page width, reset explicit dimensions through Properties, and
+  select actual cells instead of their paragraphs.
+- Sort whole table rows by the selected column while retaining the header and
+  surrounding document. Disable operations that cannot apply to the selection.
+- Preserve explicit zero page margins, paragraph spacing and paragraph border
+  sides when reopening DOCX.
+- Keep same-named browser imports and unrelated Save As destinations separate;
+  retain the correct disk handle for subsequent saves. Surface picker and storage
+  failures instead of treating them as cancellation.
+- Reject invalid browser rename names, preserve files when rename removal fails,
+  and show only supported document files in the browser's document list.
+- Write native documents, PDFs, settings and recent-file lists through a flushed
+  temporary file before replacing the saved copy. Avoid overwriting a concurrent
+  native copy, and validate nested native document nodes and marks before opening
+  so malformed content cannot silently become a blank document.
+- Recheck unsaved edits after slow document reads and ignore obsolete open
+  requests. Serialize each file's complete save pipeline so overlapping saves
+  and Save-and-close leave the newest document on disk.
+- Show errors from default-folder lookup, rename, copy and PDF export instead
+  of leaving failed operations without feedback.
+- Print documents in normal page flow so PDF export excludes the editor canvas,
+  scrollbars and selection handles and continues long content onto later pages.
+  Preserve table proportions and explicit page breaks in multicolumn layouts.
+
+### Build and testing
+
+- Synchronize the application, workspace manifests, lockfile and website version
+  for the Windows 0.6.0 release.
+- Extend regression coverage for table operations, template creation and DOCX
+  round-trips, file-write failures, browser file identity and website navigation.
+  Allow the native suite to target a packaged executable with isolated user data.
+- Refresh the website's app screenshots and the reviewed gallery visual baseline.
+
 ### Documentation
 
 - Require self-contained commit and pull-request descriptions covering material
   changes, their purpose, validation, and limitations, without copying prompts
   or conversation text into the published record.
+- Update the feature catalogue and end-to-end review with the new behavior and
+  validation evidence.
+
+### Known limitations
+
+- The existing TipTap dependency advisory GHSA-cp6q-959q-f8rh remains; its upstream
+  fix requires a major-version migration. This release does not claim to resolve
+  it. See docs/REVIEW.md for scope and compatibility limits.
 
 ## [0.5.0] - 2026-09-09
 

@@ -50,6 +50,23 @@ describe('template catalogue', () => {
 
       const expectedTypes = template.content.content.map((block) => block.type);
       expect(loaded.content!.map((block) => block.type), id).toEqual(expectedTypes);
+
+      // Inspect the complete tree: a missing text mark or nested cell is easy
+      // to miss when only the top-level block count is checked.
+      const checkContent = (expected: { type: string; text?: string; attrs?: Record<string, unknown>; marks?: unknown[]; content?: unknown[] }, actual: typeof loaded) => {
+        expect(actual.type, id).toBe(expected.type);
+        if (expected.text != null) expect(actual.text, id).toBe(expected.text);
+        for (const mark of expected.marks ?? []) {
+          const typedMark = mark as { type: string; attrs?: Record<string, unknown> };
+          expect(actual.marks?.find(candidate => candidate.type === typedMark.type), id).toMatchObject(typedMark);
+        }
+        if (expected.attrs) expect(actual.attrs, id).toMatchObject(expected.attrs);
+        if (expected.content) {
+          expect(actual.content?.length, id).toBe(expected.content.length);
+          expected.content.forEach((child, index) => checkContent(child as typeof expected, actual.content![index]));
+        }
+      };
+      checkContent(template.content, loaded);
     },
   );
 

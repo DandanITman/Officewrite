@@ -26,6 +26,7 @@ async function tableTool(page: Page, testId: string) {
   await switchRibbonTab(page, 'tableLayout');
   const inDeleteMenu = ['table-delete-row', 'table-delete-col', 'table-delete'].includes(testId);
   if (inDeleteMenu) await page.getByTestId('table-delete-menu').click();
+  if (testId.startsWith('table-style-') && testId !== 'table-style-gallery') await page.getByTestId('table-style-gallery').click();
   await page.getByTestId(testId).click();
 }
 
@@ -42,6 +43,96 @@ test.describe('Table tools', () => {
     await resetTestState(page);
     await openBlankDocument(page);
   });
+
+  test('inserts exact dimensions with an optional header', async ({ page }) => {
+    await switchRibbonTab(page, 'insert');
+    await page.getByTestId('ribbon-table').click();
+    await page.getByTestId('table-custom-columns').fill('4');
+    await page.getByTestId('table-custom-rows').fill('9');
+    await page.getByTestId('table-custom-header').uncheck();
+    await page.getByTestId('table-custom-insert').click();
+    await expect(editor(page).locator('tr')).toHaveCount(9);
+    await expect(editor(page).locator('td')).toHaveCount(36);
+    await expect(editor(page).locator('th')).toHaveCount(0);
+    await switchRibbonTab(page, 'tableLayout');
+    await expect(page.getByTestId('table-context-summary')).toHaveText('9 × 4 table');
+  });
+
+  test('table size grid supports directional keyboard selection', async ({ page }) => {
+    await switchRibbonTab(page, 'insert');
+    await page.getByTestId('ribbon-table').click();
+    const first = page.getByRole('button', { name: '1 by 1 table', exact: true });
+    await first.focus();
+    await expect(page.locator('.rb-table-picker-label')).toHaveText('1 column × 1 row');
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.rb-table-picker-label')).toHaveText('2 columns × 1 row');
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('button', { name: '2 by 2 table', exact: true })).toBeFocused();
+    await expect(page.locator('.rb-table-picker-label')).toHaveText('2 columns × 2 rows');
+    await page.keyboard.press('Tab');
+    await expect(page.getByTestId('table-custom-columns')).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.getByRole('button', { name: '2 by 2 table', exact: true })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(editor(page).locator('tr')).toHaveCount(2);
+    await expect(editor(page).locator('th,td')).toHaveCount(4);
+  });
+
+  test('styles render on the document and selection remains visible over shading', async ({ page }) => {
+    await insertTable(page);
+    await tableTool(page, 'table-style-bandedRows');
+    await expect(editor(page).locator('table')).toHaveAttribute('data-table-style', 'bandedRows');
+    const colors = await editor(page).locator('tr').evaluateAll((rows) => rows.slice(1).map((row) => getComputedStyle(row.querySelector('td')!).backgroundColor));
+    expect(colors[0]).not.toBe(colors[1]);
+    await page.getByTestId('table-select').click();
+    await page.getByRole('menuitem', { name: 'Select Cell', exact: true }).click();
+    await expect(editor(page).locator('.selectedCell')).toHaveCount(1);
+    await expect(page.getByTestId('table-merge-cells')).toBeDisabled();
+    await expect(page.getByTestId('table-split-cell')).toBeDisabled();
+  });
+
+  test('AutoFit restores page width after narrow columns', async ({ page }) => {
+    await insertTable(page);
+    await switchRibbonTab(page, 'tableLayout');
+    await page.getByTestId('table-select').click();
+    await page.getByRole('menuitem', { name: 'Select Table', exact: true }).click();
+    await page.getByTestId('table-column-width').fill('0.4');
+    await page.getByTestId('table-column-width').blur();
+    const table = editor(page).locator('table');
+    const before = await table.evaluate((el) => el.getBoundingClientRect().width);
+    await page.getByTestId('table-autofit').click();
+    await page.getByTestId('table-autofit-window').click();
+    const sizes = await table.evaluate((el) => ({ width: el.getBoundingClientRect().width, parent: el.parentElement!.clientWidth }));
+    expect(sizes.width).toBeGreaterThan(before);
+    expect(Math.abs(sizes.width - sizes.parent)).toBeLessThan(6);
+  });
+
+  test('sorts whole rows from the selected column and preserves the header', async ({ page }) => {
+    await insertTable(page);
+    await page.keyboard.type('Zebra');
+    await editor(page).locator('td').nth(3).click();
+    await page.keyboard.type('Apple');
+    await tableTool(page, 'table-sort');
+    await page.getByRole('menuitem', { name: 'Ascending (A to Z)' }).click();
+    await expect(editor(page).locator('tr').nth(1)).toContainText('Apple');
+    await expect(editor(page).locator('tr').nth(2)).toContainText('Zebra');
+    await expect(editor(page).locator('tr').first().locator('th')).toHaveCount(3);
+  });
+
+  for (const width of [1280, 900]) {
+    test(`table controls remain inside the visible ribbon at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 860 });
+      await insertTable(page);
+      await switchRibbonTab(page, 'tableLayout');
+      await expect.poll(async () => page.getByRole('tabpanel').evaluate((panel) => {
+        const box = panel.getBoundingClientRect();
+        return [...panel.querySelectorAll('button, input')].filter((control) => {
+          const bounds = control.getBoundingClientRect();
+          return bounds.width > 0 && (bounds.left < box.left - 1 || bounds.right > box.right + 1 || bounds.bottom > box.bottom + 1);
+        }).map((control) => control.getAttribute('data-testid') || control.textContent);
+      })).toEqual([]);
+    });
+  }
 
   test('TC-TBL-001: the table tools appear only when the caret is in a table', async ({ page }) => {
     await switchRibbonTab(page, 'insert');

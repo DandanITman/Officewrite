@@ -24,11 +24,17 @@ the ribbon layout menu.
 
 ## File
 
-- New document from a blank page or any of the 32 templates, from the start
+- New document from a blank page or any of the 39 designed templates, from the start
   screen, its searchable gallery, or the backstage New pane. Every card shows a
   miniature of the template's own first page, meaning its real headings, text,
-  lists and tables. A corner button opens that page at readable size, with a
-  Create button beside it.
+  lists and tables. A corner button opens a readable preview, including every
+  explicit page in multi-page templates, with a Create button beside it.
+  Search and category filters include a Creative category and a clear-filters
+  action. Templates carry their typography, section rules, spacing and table
+  formatting into the document you create.
+- Project Brief, Decision Log, Project Handover, Standard Operating Procedure,
+  Creative Brief, Portfolio Case Study, Editorial Calendar and Story Outline
+  join the existing business, education, resume, letter and personal templates.
 - Open `.officewrite`, `.docx`, `.doc`, `.rtf`, `.html`, `.txt`
 - Save and Save As; the format follows the file extension
 - Rename the open document, and Create a Copy alongside it
@@ -76,10 +82,16 @@ the dialogs, comments and synonyms.
 ## Insert
 
 - **Pages**: four cover pages, Blank Page, Page Break
-- **Tables**: the hover-to-size grid picker, a quick 3 × 3, and Delete Table.
+- **Tables**: a keyboard-accessible size grid, exact row/column entry, an optional
+  header row, a quick 3 × 3, and Delete Table.
   The contextual Table Layout tab adds rows and columns, merges and splits
   cells, selects a cell/row/column/table, sets row height and column width in
-  inches, distributes rows or columns evenly, and offers AutoFit
+  inches, distributes rows or columns evenly, and fits to contents or page width.
+  A named style gallery offers grid, plain, accent, banded-row, banded-column and
+  borderless designs; shading applies to selected header and body cells together.
+  Sort reorders complete rows by the selected column while preserving the header;
+  it is unavailable for merged tables. Widths, row heights, merges, shading and
+  supported table styles survive DOCX export and import.
 - **Illustrations**: Pictures, Shapes (rectangle, oval, triangle, line, arrow)
   and Drawing, which inserts an ink canvas and opens the Draw tab
 - **Links**: hyperlinks, bookmarks and cross-references

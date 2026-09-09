@@ -46,16 +46,20 @@ const COVER_PAGES = [
 ];
 
 /** The table grid: hover to size, click to insert. */
-function TableGridPicker({ onPick }: { onPick: (rows: number, cols: number) => void }) {
+function TableGridPicker({ onPick }: { onPick: (rows: number, cols: number, header: boolean) => void }) {
   const { close } = useRibbonMenu();
   const [hover, setHover] = useState({ rows: 0, cols: 0 });
+  const [focusedCell, setFocusedCell] = useState(0);
+  const [rows, setRows] = useState('3');
+  const [cols, setCols] = useState('3');
+  const [header, setHeader] = useState(true);
   const maxRows = 8;
   const maxCols = 10;
 
   return (
     <div className="rb-table-picker">
-      <div className="rb-table-picker-label">
-        {hover.rows > 0 ? `${hover.cols} × ${hover.rows} Table` : 'Insert Table'}
+      <div className="rb-table-picker-label" aria-live="polite">
+        {hover.rows > 0 ? `${hover.cols} column${hover.cols === 1 ? '' : 's'} × ${hover.rows} row${hover.rows === 1 ? '' : 's'}` : 'Choose a table size'}
       </div>
       <div
         className="rb-table-grid"
@@ -72,15 +76,44 @@ function TableGridPicker({ onPick }: { onPick: (rows: number, cols: number) => v
               type="button"
               className={`rb-table-cell${lit ? ' is-lit' : ''}`}
               aria-label={`${col} by ${row} table`}
+              tabIndex={index === focusedCell ? 0 : -1}
               onMouseEnter={() => setHover({ rows: row, cols: col })}
+              onFocus={() => {
+                setFocusedCell(index);
+                setHover({ rows: row, cols: col });
+              }}
+              onKeyDown={(event) => {
+                const delta = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: maxCols, ArrowUp: -maxCols }[event.key];
+                if (delta === undefined) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const next = event.key === 'ArrowRight' ? index + (col < maxCols ? 1 : 0)
+                  : event.key === 'ArrowLeft' ? index - (col > 1 ? 1 : 0)
+                  : Math.max(col - 1, Math.min((maxRows - 1) * maxCols + col - 1, index + delta));
+                (event.currentTarget.parentElement?.children[next] as HTMLButtonElement)?.focus();
+              }}
               onClick={() => {
-                onPick(row, col);
+                onPick(row, col, header);
                 close();
               }}
             />
           );
         })}
       </div>
+      <p className="table-picker-help">Choose a square, or enter an exact size below.</p>
+      <form className="table-custom-form" onSubmit={(event) => {
+        event.preventDefault();
+        const rowCount = Number(rows);
+        const colCount = Number(cols);
+        if (!Number.isInteger(rowCount) || !Number.isInteger(colCount) || rowCount < 1 || rowCount > 50 || colCount < 1 || colCount > 20) return;
+        onPick(rowCount, colCount, header);
+        close();
+      }}>
+        <label>Columns<input data-testid="table-custom-columns" type="number" min="1" max="20" required value={cols} onChange={(event) => setCols(event.target.value)} onKeyDown={(event) => event.stopPropagation()} /></label>
+        <label>Rows<input data-testid="table-custom-rows" type="number" min="1" max="50" required value={rows} onChange={(event) => setRows(event.target.value)} onKeyDown={(event) => event.stopPropagation()} /></label>
+        <label className="table-header-choice"><input data-testid="table-custom-header" type="checkbox" checked={header} onChange={(event) => setHeader(event.target.checked)} />First row is a header</label>
+        <button className="rb-btn rb-btn--small" type="submit" data-testid="table-custom-insert">Insert table</button>
+      </form>
     </div>
   );
 }
@@ -138,11 +171,11 @@ export function InsertTab({ editor, state, actions, flags }: RibbonTabProps) {
           size="large"
           active={state.inTable}
           testId="ribbon-table"
-          menuWidth={200}
+          menuWidth={250}
         >
           <TableGridPicker
-            onPick={(rows, cols) =>
-              editor?.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run()
+            onPick={(rows, cols, withHeaderRow) =>
+              editor?.chain().focus().insertTable({ rows, cols, withHeaderRow }).run()
             }
           />
           <RibbonMenuSeparator />

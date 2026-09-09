@@ -35,6 +35,7 @@ import type { ImportDocResult, ListedDocument, OfficewriteAPI } from './api';
 interface WritableStreamLike {
   write: (data: BufferSource | Blob | string) => Promise<void>;
   close: () => Promise<void>;
+  abort?: () => Promise<void>;
 }
 
 interface FileHandleLike {
@@ -42,6 +43,7 @@ interface FileHandleLike {
   kind: 'file';
   getFile: () => Promise<File>;
   createWritable: () => Promise<WritableStreamLike>;
+  isSameEntry?: (other: FileHandleLike) => Promise<boolean>;
 }
 
 interface DirectoryHandleLike {
@@ -71,6 +73,7 @@ interface PickerWindow {
 
 /** The single folder documents live in. Mirrors the desktop default. */
 const DOCS_DIR = '/Documents';
+const DOCUMENT_EXTENSION = /\.(docx|officewrite|rtf|html?|txt)$/i;
 
 const SETTINGS_KEY = 'officewrite.settings';
 const RECENTS_KEY = 'officewrite.recents';
@@ -151,6 +154,18 @@ async function documentsDir(): Promise<DirectoryHandleLike | null> {
   return opfsPending;
 }
 
+async function availableDocumentPath(name: string): Promise<string> {
+  const dot = name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const extension = dot > 0 ? name.slice(dot) : '';
+  for (let index = 0; index < 1000; index += 1) {
+    const candidate = index === 0 ? name : `${stem} (${index})${extension}`;
+    const path = docPath(candidate);
+    if (!diskHandles.has(path) && !await readStored(path)) return path;
+  }
+  throw new Error('Too many files share this name. Rename the selected file and try again.');
+}
+
 async function openDocumentsDir(): Promise<DirectoryHandleLike | null> {
   try {
     const storage = navigator.storage as unknown as {
@@ -178,8 +193,9 @@ async function readStored(path: string): Promise<Uint8Array | null> {
     const handle = await dir.getFileHandle(name);
     const file = await handle.getFile();
     return new Uint8Array(await file.arrayBuffer());
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotFoundError') return null;
+    throw error;
   }
 }
 
@@ -192,14 +208,22 @@ async function writeStored(path: string, data: Uint8Array): Promise<boolean> {
   }
   try {
     const handle = await dir.getFileHandle(name, { create: true });
-    const writable = await handle.createWritable();
-    // Copy into a fresh buffer: a Uint8Array view over a larger ArrayBuffer
-    // would otherwise write the whole backing store.
-    await writable.write(data.slice().buffer as ArrayBuffer);
-    await writable.close();
+    await writeHandle(handle, data);
     return true;
   } catch {
     return false;
+  }
+}
+
+async function writeHandle(handle: FileHandleLike, bytes: Uint8Array): Promise<void> {
+  const writable = await handle.createWritable();
+  try {
+    // Copy the selected view, not any extra bytes from its backing buffer.
+    await writable.write(bytes.slice().buffer as ArrayBuffer);
+    await writable.close();
+  } catch (error) {
+    await writable.abort?.().catch(() => undefined);
+    throw error;
   }
 }
 
@@ -276,7 +300,9 @@ export function createBrowserHost(): OfficewriteAPI {
   /** Copy a picked file into OPFS so the rest of the app sees a normal path. */
   async function adopt(file: File): Promise<string> {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const path = docPath(file.name);
+    // A same-named file from another folder must not replace a saved document
+    // or inherit a disk handle previously chosen for that document.
+    const path = await availableDocumentPath(file.name);
     if (!(await writeStored(path, bytes))) throw new Error('Could not store the selected file. Browser storage may be full.');
     return path;
   }
@@ -290,8 +316,9 @@ export function createBrowserHost(): OfficewriteAPI {
           const [handle] = await picker.showOpenFilePicker({ types: DOC_TYPES });
           if (!handle) return null;
           return await adopt(await handle.getFile());
-        } catch {
-          return null; // the user dismissed the picker
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') return null;
+          throw error;
         }
       }
       const file = await promptForFile('.docx,.rtf,.html,.htm,.txt,.officewrite');
@@ -304,8 +331,9 @@ export function createBrowserHost(): OfficewriteAPI {
           const [handle] = await picker.showOpenFilePicker({ types: IMAGE_TYPES });
           if (!handle) return null;
           return await adopt(await handle.getFile());
-        } catch {
-          return null;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') return null;
+          throw error;
         }
       }
       const file = await promptForFile('image/*');
@@ -318,8 +346,9 @@ export function createBrowserHost(): OfficewriteAPI {
           const [handle] = await picker.showOpenFilePicker({ types: DATA_TYPES });
           if (!handle) return null;
           return await adopt(await handle.getFile());
-        } catch {
-          return null;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') return null;
+          throw error;
         }
       }
       const file = await promptForFile('.csv,.tsv,.txt');
@@ -341,17 +370,21 @@ export function createBrowserHost(): OfficewriteAPI {
             suggestedName: suggested,
             types: DOC_TYPES,
           });
-          const path = docPath(handle.name);
+          for (const [knownPath, knownHandle] of diskHandles) {
+            if (handle === knownHandle || await handle.isSameEntry?.(knownHandle)) return knownPath;
+          }
+          const path = await availableDocumentPath(handle.name);
           // Remember the handle so writeFile reaches the real file, not just OPFS.
           diskHandles.set(path, handle);
           return path;
-        } catch {
-          return null;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') return null;
+          throw error;
         }
       }
       // No picker: keep it in OPFS under the suggested name. writeFile also
       // triggers a download, which is the only route to disk here.
-      return docPath(suggested);
+      return availableDocumentPath(suggested);
     },
 
     /* ---- file I/O ------------------------------------------------ */
@@ -375,9 +408,7 @@ export function createBrowserHost(): OfficewriteAPI {
       const handle = diskHandles.get(filePath);
       if (handle) {
         try {
-          const writable = await handle.createWritable();
-          await writable.write(bytes.slice().buffer as ArrayBuffer);
-          await writable.close();
+          await writeHandle(handle, bytes);
         } catch {
           // The handle went stale (permission revoked, file moved). The OPFS
           // copy above still holds the content, so the edit is not lost.
@@ -390,6 +421,8 @@ export function createBrowserHost(): OfficewriteAPI {
     },
 
     renameFile: async (filePath: string, newName: string) => {
+      if (!newName.trim() || /[\\/]/.test(newName) || newName === '.' || newName === '..') return null;
+      if (newName === fileNameOf(filePath)) return filePath;
       const dir = await documentsDir();
       const bytes = await readStored(filePath);
       if (!bytes) return null;
@@ -398,14 +431,21 @@ export function createBrowserHost(): OfficewriteAPI {
         try {
           await dir.getFileHandle(newName);
           return null; // name already taken, matching the desktop contract
-        } catch {
-          /* free */
+        } catch (error) {
+          if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error;
         }
       } else if (memoryFiles.has(newName)) {
         return null;
       }
       if (!(await writeStored(target, bytes))) return null;
-      if (dir) await dir.removeEntry(fileNameOf(filePath)).catch(() => {});
+      if (dir) {
+        try {
+          await dir.removeEntry(fileNameOf(filePath));
+        } catch {
+          await dir.removeEntry(newName).catch(() => {});
+          return null;
+        }
+      }
       else memoryFiles.delete(fileNameOf(filePath));
       diskHandles.delete(filePath);
       return target;
@@ -444,17 +484,17 @@ export function createBrowserHost(): OfficewriteAPI {
     listDocuments: async () => {
       const dir = await documentsDir();
       if (!dir) {
-        return [...memoryFiles.entries()].map(([name, entry]) => ({
+        return [...memoryFiles.entries()].filter(([name]) => DOCUMENT_EXTENSION.test(name)).map(([name, entry]) => ({
           path: docPath(name),
           name,
           modified: entry.modified,
           size: entry.data.byteLength,
-        }));
+        })).sort((a, b) => b.modified - a.modified);
       }
       const out: ListedDocument[] = [];
       try {
         for await (const entry of dir.values()) {
-          if (entry.kind !== 'file') continue;
+          if (entry.kind !== 'file' || !DOCUMENT_EXTENSION.test(entry.name)) continue;
           const file = await entry.getFile();
           out.push({
             path: docPath(entry.name),
@@ -466,7 +506,7 @@ export function createBrowserHost(): OfficewriteAPI {
       } catch {
         /* listing is best-effort */
       }
-      return out;
+      return out.sort((a, b) => b.modified - a.modified);
     },
 
     getDefaultSaveDir: async () => DOCS_DIR,

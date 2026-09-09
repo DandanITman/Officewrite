@@ -28,6 +28,17 @@ function marksOn(node: TipTapNode, word: string): string[] {
 }
 
 describe('DOCX round trip', () => {
+  it('preserves zero page margins and explicit zero paragraph spacing', async () => {
+    const result = await roundTrip({
+      type: 'doc', content: [{
+        type: 'paragraph', attrs: { spaceBefore: 0, spaceAfter: 0, lineHeight: '1' },
+        content: [{ type: 'text', text: 'No extra spacing' }],
+      }],
+    }, { pageSetup: { ...DEFAULT_PAGE_SETUP, margins: { top: 0, bottom: 0, left: 0, right: 0 } } });
+    expect(result.pageSetup.margins).toEqual({ top: 0, bottom: 0, left: 0, right: 0 });
+    expect(collect(result.content, 'paragraph')[0]?.attrs).toMatchObject({ spaceBefore: 0, spaceAfter: 0, lineHeight: '1' });
+  });
+
   it('preserves headings and paragraph text', async () => {
     const result = await roundTrip({
       type: 'doc',

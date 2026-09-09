@@ -405,6 +405,73 @@ test.describe('File dialog alerts', () => {
     });
   }
 
+  for (const picker of ['openFile', 'saveFile', 'openImageFile', 'openDataFile'] as const) {
+    test(`shows ${picker} errors without losing the current document`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await openBlankDocument(page);
+      await typeInEditor(page, 'Keep this document');
+      await page.evaluate((method) => {
+        window.officewrite[method] = async () => { throw new Error('Permission denied while selecting the file'); };
+      }, picker);
+      if (picker === 'openFile') await page.keyboard.press('Control+o');
+      else if (picker === 'saveFile') await page.keyboard.press('Control+s');
+      else if (picker === 'openImageFile') {
+        await switchRibbonTab(page, 'insert');
+        await page.getByTestId('ribbon-pictures').click();
+      } else {
+        await switchRibbonTab(page, 'mailings');
+        await page.getByTestId('mailings-select-recipients').click();
+        await page.getByTestId('mailings-existing-list').click();
+      }
+      await dismissAlert(page, /Could not select the file.*Permission denied/);
+      await expect(page.getByTestId('word-editor')).toContainText('Keep this document');
+      await expect(page).toHaveTitle('Untitled * - Officewrite');
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test('reports an unavailable default save folder and keeps edits unsaved', async ({ page }) => {
+    await openBlankDocument(page);
+    await typeInEditor(page, 'Keep this document');
+    await page.evaluate(() => {
+      window.officewrite.getDefaultSaveDir = async () => { throw new Error('Default folder is unavailable'); };
+    });
+    await page.keyboard.press('Control+s');
+    await dismissAlert(page, /Could not select the file.*Default folder is unavailable/);
+    await expect(page).toHaveTitle('Untitled * - Officewrite');
+    await expect(page.getByTestId('word-editor')).toContainText('Keep this document');
+  });
+
+  test('reports PDF export failures and keeps the source document', async ({ page }) => {
+    await openBlankDocument(page);
+    await typeInEditor(page, 'PDF source content');
+    await page.evaluate((path) => {
+      window.__OFFICEWRITE_TEST__?.setSaveFileResult(path);
+      window.officewrite.exportPdf = async () => { throw new Error('Output file is locked'); };
+    }, PATHS.pdf);
+    await openBackstage(page, 'export');
+    await page.getByTestId('export-pdf').click();
+    await dismissAlert(page, /Could not export the PDF.*Output file is locked/);
+    await expect(page).toHaveTitle('Untitled * - Officewrite');
+  });
+
+  for (const operation of ['rename', 'copy'] as const) {
+    test(`reports ${operation} permission failures without losing the saved document`, async ({ page }) => {
+      await openBlankDocument(page);
+      await typeInEditor(page, 'Saved document');
+      await saveToPath(page, PATHS.savedDocx);
+      await page.evaluate((operation) => {
+        window.officewrite[operation === 'rename' ? 'renameFile' : 'copyFile'] = async () => { throw new Error('Access denied'); };
+      }, operation);
+      await fileMenu(page, operation);
+      if (operation === 'rename') await answerPrompt(page, 'Renamed document');
+      await dismissAlert(page, new RegExp(`Could not ${operation}.*Access denied`));
+      await expect(page.getByTestId('word-editor')).toContainText('Saved document');
+      await expect(page).toHaveTitle('saved.docx - Officewrite');
+    });
+  }
+
   test('failed deletion keeps the open document and unsaved edits', async ({ page }) => {
     await openBlankDocument(page);
     await saveToPath(page, PATHS.savedDocx);
@@ -489,5 +556,75 @@ test.describe('File dialog alerts', () => {
     await dismissAlert(page, /Could not open the document/);
     await expect(page.getByTestId('word-editor')).toContainText('Keep this document');
     await expect(page).toHaveTitle('Untitled * - Officewrite');
+  });
+
+  for (const malformed of ['unknown node', 'unknown mark', 'invalid nesting'] as const) {
+    test(`rejects native ${malformed} without adopting a blank document`, async ({ page }) => {
+      await openBlankDocument(page);
+      await typeInEditor(page, 'Keep this document');
+      await page.evaluate((malformed) => {
+        const text = { type: 'text', text: 'Recover this content', ...(malformed === 'unknown mark' ? { marks: [{ type: 'unsupportedMark' }] } : {}) };
+        const paragraph = { type: 'paragraph', content: [text] };
+        const block = malformed === 'unknown node' ? { ...paragraph, type: 'unsupportedNode' }
+          : malformed === 'invalid nesting' ? { type: 'paragraph', content: [paragraph] } : paragraph;
+        const path = 'C:/OfficewriteTest/malformed.officewrite';
+        window.__OFFICEWRITE_TEST__?.seedFile(path, JSON.stringify({ version: 3, content: { type: 'doc', content: [block] } }));
+        window.__OFFICEWRITE_TEST__?.setOpenFileResult(path);
+      }, malformed);
+      await page.keyboard.press('Control+o');
+      await dismissAlert(page, /corrupted/i);
+      await expect(page.getByTestId('word-editor')).toContainText('Keep this document');
+      await expect(page).toHaveTitle('Untitled * - Officewrite');
+    });
+  }
+
+  test('asks before discarding edits made while another document is loading', async ({ page }) => {
+    await seedAllSampleFiles(page);
+    await openBlankDocument(page);
+    await page.evaluate((path) => {
+      window.__OFFICEWRITE_TEST__?.setOpenFileResult(path);
+      const read = window.officewrite.readTextFile;
+      window.officewrite.readTextFile = async (target) => {
+        if (target.replace(/\\/g, '/') === path) await new Promise<void>(resolve => {
+          window.addEventListener('release-delayed-open', () => resolve(), { once: true });
+          document.documentElement.dataset.openPending = 'true';
+        });
+        return read(target);
+      };
+    }, PATHS.txt);
+    await page.keyboard.press('Control+o');
+    await expect(page.locator('html')).toHaveAttribute('data-open-pending', 'true');
+    await typeInEditor(page, 'Changes made while loading');
+    await page.evaluate(() => window.dispatchEvent(new Event('release-delayed-open')));
+    await answerConfirm(page, false);
+    await expect(page.getByTestId('word-editor')).toContainText('Changes made while loading');
+    await expect(page).toHaveTitle('Untitled * - Officewrite');
+  });
+
+  test('ignores a stale open after a newer document has already opened', async ({ page }) => {
+    await seedAllSampleFiles(page);
+    await openBlankDocument(page);
+    await page.evaluate((path) => {
+      window.__OFFICEWRITE_TEST__?.setOpenFileResult(path);
+      const read = window.officewrite.readTextFile;
+      window.officewrite.readTextFile = async (target) => {
+        if (target.replace(/\\/g, '/') === path) await new Promise<void>(resolve => {
+          window.addEventListener('release-delayed-open', () => resolve(), { once: true });
+          document.documentElement.dataset.openPending = 'true';
+        });
+        const result = await read(target);
+        if (target.replace(/\\/g, '/') === path) document.documentElement.dataset.openComplete = 'true';
+        return result;
+      };
+    }, PATHS.txt);
+    await page.keyboard.press('Control+o');
+    await expect(page.locator('html')).toHaveAttribute('data-open-pending', 'true');
+    await page.evaluate((path) => window.__OFFICEWRITE_TEST__?.setOpenFileResult(path), PATHS.officewrite);
+    await page.keyboard.press('Control+o');
+    await expect(page).toHaveTitle('sample.officewrite - Officewrite');
+    await page.evaluate(() => window.dispatchEvent(new Event('release-delayed-open')));
+    await expect(page.locator('html')).toHaveAttribute('data-open-complete', 'true');
+    await expect(page).toHaveTitle('sample.officewrite - Officewrite');
+    await expect(page.getByTestId('word-editor')).toContainText('Imported sample paragraph');
   });
 });

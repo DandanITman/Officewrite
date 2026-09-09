@@ -1,7 +1,8 @@
 import { dialog, ipcMain, shell, type BrowserWindow } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ensureDir } from '../store';
+import { constants } from 'node:fs';
+import { writeFileAtomically } from '../atomicFile';
 
 const DOCUMENT_EXTENSIONS = ['docx', 'officewrite', 'doc', 'txt', 'rtf', 'html', 'htm'];
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
@@ -79,8 +80,7 @@ export function registerFileIpc(getWindow: () => BrowserWindow | null) {
   );
 
   ipcMain.handle('fs:writeFile', async (_e, filePath: string, data: Uint8Array | string) => {
-    ensureDir(path.dirname(filePath));
-    await fs.writeFile(filePath, data);
+    await writeFileAtomically(filePath, data);
     return true;
   });
 
@@ -109,10 +109,10 @@ export function registerFileIpc(getWindow: () => BrowserWindow | null) {
     for (let n = 1; n < 100; n += 1) {
       const target = path.join(dir, `${stem} (${n})${ext}`);
       try {
-        await fs.access(target);
-      } catch {
-        await fs.copyFile(filePath, target);
+        await fs.copyFile(filePath, target, constants.COPYFILE_EXCL);
         return target;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
       }
     }
     return null;

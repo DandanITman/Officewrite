@@ -27,7 +27,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 type TextNode = { type: 'text'; text: string; marks?: Mark[] };
-type Block = { type: string; attrs?: Record<string, unknown>; content?: unknown[] };
+type Block = { type: string; text?: string; marks?: Mark[]; attrs?: Record<string, unknown>; content?: Block[] };
 
 type ParagraphAttrs = {
   textAlign?: 'left' | 'center' | 'right' | 'justify';
@@ -116,6 +116,7 @@ function table(header: string[], ...rows: string[][]): Block {
 export const TEMPLATE_CATEGORIES = [
   'Basic',
   'Business',
+  'Creative',
   'Resumes and Cover Letters',
   'Letters',
   'Education',
@@ -134,12 +135,14 @@ export interface Template {
   category: TemplateCategory;
   /** Extra search terms, for words people type that the name does not contain. */
   keywords: string[];
+  /** The same accent used by headings and table headers in the document. */
+  accent?: string;
   content: { type: 'doc'; content: Block[] };
 }
 
 const doc = (...content: Block[]) => ({ type: 'doc' as const, content });
 
-export const TEMPLATES: Template[] = [
+const TEMPLATE_CONTENT: Template[] = [
   {
     id: 'blank',
     name: 'Blank Document',
@@ -158,15 +161,16 @@ export const TEMPLATES: Template[] = [
     category: 'Business',
     keywords: ['formal', 'correspondence', 'block format'],
     content: doc(
-      p('[Your Name]'),
-      p('[Your Address]'),
-      p(),
+      h(1, '[Your Name]'),
+      p('[Your Address] · [Email] · [Phone]', { styleId: 'subtitle' }),
       p('[Date]'),
-      p(),
+      p('[Recipient name and title]'),
+      p('[Organisation] · [Address]'),
+      rich({ spaceBefore: 14, spaceAfter: 14 }, t('Re: ', 'bold'), t('[Subject of your letter]')),
       p('Dear [Recipient],'),
-      p(),
-      p('Write your letter here.'),
-      p(),
+      p('[State the purpose of your letter in one or two sentences.]'),
+      p('[Add the facts, dates or context the reader needs. Keep one idea in each paragraph.]'),
+      p('[Close with the action you are requesting and a date for a response.]'),
       p('Sincerely,'),
       p('[Your Name]'),
     ),
@@ -179,11 +183,16 @@ export const TEMPLATES: Template[] = [
     keywords: ['summary', 'findings', 'document'],
     content: doc(
       h(1, 'Report Title'),
-      p(),
+      p('[Team or organisation] · [Author] · [Date]', { styleId: 'subtitle' }),
+      rich({ shading: '#eff6ff', borderColor: '#24536c', spaceBefore: 12, spaceAfter: 18 }, t('Key finding  ', 'bold'), t('[The result your reader should remember.]')),
       h(2, 'Introduction'),
-      p('Write your introduction here.'),
+      p('[Define the question, scope and evidence behind this report.]'),
       h(2, 'Summary'),
-      p('Write your summary here.'),
+      p('[Explain what the evidence shows and why it matters.]'),
+      h(2, 'Findings'),
+      ul('[Finding supported by a number or source.]', '[Finding and its practical effect.]'),
+      h(2, 'Recommended next steps'),
+      table(['Action', 'Owner', 'Due'], ['[Next step]', '[Name]', '[Date]']),
     ),
   },
   {
@@ -416,6 +425,166 @@ export const TEMPLATES: Template[] = [
     ),
   },
 
+  {
+    id: 'projectbrief',
+    name: 'Project Brief',
+    description: 'A focused project overview with success measures, scope and owners',
+    category: 'Business',
+    keywords: ['office', 'kickoff', 'overview', 'scope', 'stakeholders', 'team'],
+    content: doc(
+      p('PROJECT BRIEF', { styleId: 'subtitle' }),
+      h(1, '[Project name]'),
+      p('[Team] · [Project lead] · Updated [date]', { styleId: 'subtitle' }),
+      rich({ shading: '#edf5f7', borderColor: '#24536c' }, t('The outcome  ', 'bold'), t('[What will be different when this project succeeds.]')),
+      h(2, 'Why now'),
+      p('[The problem, who it affects and the cost of leaving it unresolved.]'),
+      h(2, 'Success measures'),
+      table(['Measure', 'Today', 'Target'], ['[Metric]', '[Baseline]', '[Target and date]'], ['[Metric]', '[Baseline]', '[Target and date]']),
+      h(2, 'Scope and boundaries'),
+      table(['Included', 'Not included'], ['[Deliverable or activity]', '[Explicit exclusion]'], ['[Deliverable or activity]', '[Explicit exclusion]']),
+      h(2, 'Milestones and ownership'),
+      table(['Milestone', 'Owner', 'Due'], ['Kickoff and agreement', '[Name]', '[Date]'], ['First review', '[Name]', '[Date]'], ['Delivery and handover', '[Name]', '[Date]']),
+      h(2, 'Risks and decisions needed'),
+      ul('[Risk or dependency] · [Mitigation] · [Owner]', '[Decision needed] · [Decision maker] · [Date]'),
+    ),
+  },
+  {
+    id: 'decisionlog',
+    name: 'Decision Log',
+    description: 'A decision record with alternatives, rationale and a review date',
+    category: 'Business',
+    keywords: ['office', 'decisions', 'record', 'rationale', 'options', 'approval'],
+    content: doc(
+      p('DECISION RECORD · [001]', { styleId: 'subtitle' }),
+      h(1, '[Decision to make]'),
+      table(['Owner', 'Status', 'Decision date'], ['[Name]', '[Proposed / agreed / superseded]', '[Date]']),
+      h(2, 'Context'), p('[What triggered this decision, and what constraints must it respect?]'),
+      h(2, 'Options considered'),
+      table(['Option', 'Benefits', 'Tradeoffs'], ['[Option A]', '[Benefits]', '[Costs or risks]'], ['[Option B]', '[Benefits]', '[Costs or risks]'], ['Keep the current approach', '[Benefits]', '[Costs or risks]']),
+      h(2, 'Decision and rationale'),
+      rich({ shading: '#edf5f7', borderColor: '#24536c' }, t('We will  ', 'bold'), t('[Selected approach and the evidence behind it.]')),
+      h(2, 'Implementation'),
+      checklist('[Action] · [Owner] · [Due]', '[Communicate the decision] · [Owner] · [Due]'),
+      h(2, 'Review'), p('[Review date or trigger] · [What would cause us to revisit this decision?]'),
+    ),
+  },
+  {
+    id: 'handover',
+    name: 'Project Handover',
+    description: 'Transfer ownership with open work, contacts and a first-week checklist',
+    category: 'Business',
+    keywords: ['office', 'transition', 'leave', 'onboarding', 'operations', 'handoff'],
+    content: doc(
+      p('HANDOVER NOTES', { styleId: 'subtitle' }), h(1, '[Project or role]'),
+      p('From [name] to [name] · Effective [date]', { styleId: 'subtitle' }),
+      h(2, 'At a glance'),
+      table(['Current position', 'Next deadline', 'First priority'], ['[Status]', '[Date and deliverable]', '[Action]']),
+      h(2, 'Open work'),
+      table(['Work item', 'Next action', 'Owner / due'], ['[Item]', '[Action and context]', '[Name] / [Date]'], ['[Item]', '[Action and context]', '[Name] / [Date]']),
+      h(2, 'People and resources'),
+      table(['Contact or resource', 'Use it for'], ['[Name and contact]', '[Responsibility]'], ['[Document or folder link]', '[What it contains]'], ['[System access contact]', '[How to request access; never list passwords]']),
+      h(2, 'Watch points'), ul('[Risk, escalation route and current mitigation.]'),
+      h(2, 'First-week checklist'),
+      checklist('Confirm access to the required systems.', 'Meet the key contacts and review the next deadline.', 'Agree ownership of every open action.'),
+      rich({ spaceBefore: 16 }, t('Handover accepted by: ', 'bold'), t('[Name] · [Date]')),
+    ),
+  },
+  {
+    id: 'procedure',
+    name: 'Standard Operating Procedure',
+    description: 'Repeatable instructions with checks, exceptions and document control',
+    category: 'Business',
+    keywords: ['office', 'sop', 'process', 'instructions', 'operations', 'workflow', 'checklist'],
+    content: doc(
+      p('STANDARD OPERATING PROCEDURE', { styleId: 'subtitle' }), h(1, '[Process name]'),
+      table(['Document ID', 'Owner', 'Version / review'], ['[SOP-001]', '[Team or name]', '[1.0] / [Date]']),
+      h(2, 'Purpose and scope'), p('[What this process achieves, when to use it and who performs it.]'),
+      h(2, 'Before you start'), checklist('[Required input, permission or material.]', '[Safety or quality check before proceeding.]'),
+      h(2, 'Procedure'),
+      table(['Step', 'Action', 'Check before continuing'], ['1', '[Action beginning with a verb]', '[Expected result]'], ['2', '[Action beginning with a verb]', '[Expected result]'], ['3', '[Action beginning with a verb]', '[Expected result]']),
+      h(2, 'Exceptions and escalation'),
+      table(['If this happens', 'Do this'], ['[Exception]', '[Recovery or escalation contact]'], ['[Missing information]', '[Where to get it]']),
+      h(2, 'Completion record'), p('[Where to record completion, what evidence to retain and who to notify.]'),
+      rich({ spaceBefore: 16 }, t('Approved by: ', 'bold'), t('[Name and date]')),
+    ),
+  },
+  {
+    id: 'creativebrief',
+    name: 'Creative Brief',
+    description: 'Align a creative project around its audience, message and deliverables',
+    category: 'Creative',
+    keywords: ['design', 'campaign', 'brand', 'studio', 'client', 'marketing'],
+    content: doc(
+      p('STUDIO / CREATIVE BRIEF', { styleId: 'subtitle' }), h(1, '[Make something that matters]'),
+      p('[Client or brand] · [Campaign] · [Date]', { styleId: 'subtitle' }),
+      rich({ shading: '#f6f0e9', borderColor: '#875136' }, t('The assignment  ', 'bold'), t('[One sentence describing what we are making and why.]')),
+      h(2, 'Who we are speaking to'), p('[Audience, their current belief and the change we want to create.]'),
+      h(2, 'The message'), p('[The single idea to communicate.]'),
+      table(['Make it feel', 'Avoid'], ['[Three useful tone words]', '[Cliches, references or approaches to avoid]']),
+      h(2, 'Deliverables'),
+      table(['Asset', 'Format / channel', 'Due'], ['[Primary asset]', '[Dimensions, length or placement]', '[Date]'], ['[Supporting asset]', '[Format]', '[Date]']),
+      h(2, 'Creative guardrails'), ul('[Brand elements or required wording.]', '[Budget, accessibility and production constraints.]'),
+      h(2, 'Review and approval'), p('[Who gives consolidated feedback, when reviews happen and who approves the final work.]'),
+    ),
+  },
+  {
+    id: 'casestudy',
+    name: 'Portfolio Case Study',
+    description: 'Tell the story of your work through the challenge, choices and results',
+    category: 'Creative',
+    keywords: ['portfolio', 'design', 'project', 'photography', 'writer', 'results'],
+    content: doc(
+      p('SELECTED WORK / [YEAR]', { styleId: 'subtitle' }), h(1, '[Project title]'),
+      p('[A short line describing the transformation.]', { styleId: 'subtitle' }),
+      table(['Client', 'Your role', 'Duration'], ['[Name or industry]', '[Responsibilities]', '[Timeframe]']),
+      h(2, 'The challenge'), p('[The starting point, the audience and the problem to solve.]'),
+      h(2, 'The insight'),
+      rich({ shading: '#f6f0e9', borderColor: '#875136' }, t('[The observation that changed your approach.]')),
+      h(2, 'The work'),
+      ol('[Research or exploration: what you learned.]', '[Key creative decision: why you made it.]', '[Execution: how the idea became a finished piece.]'),
+      p('[Insert a finished-work image here, then replace this line with its caption.]', { styleId: 'subtitle' }),
+      h(2, 'The impact'),
+      table(['Outcome', 'Evidence'], ['[Result]', '[Metric, feedback or observed change]'], ['[Result]', '[Evidence]']),
+      h(2, 'Reflection and credits'), p('[What you would take into the next project. Name collaborators and clarify your contribution.]'),
+    ),
+  },
+  {
+    id: 'editorialcalendar',
+    name: 'Editorial Calendar',
+    description: 'Plan a week of content with channels, owners and review checkpoints',
+    category: 'Creative',
+    keywords: ['content', 'social media', 'publishing', 'marketing', 'writer', 'schedule'],
+    content: doc(
+      p('CONTENT PLAN', { styleId: 'subtitle' }), h(1, 'A week of good stories'),
+      p('[Brand or publication] · Week of [date]', { styleId: 'subtitle' }),
+      rich({ shading: '#f6f0e9', borderColor: '#875136' }, t('This week’s focus  ', 'bold'), t('[Theme, audience need or campaign objective.]')),
+      h(2, 'Publishing schedule'),
+      table(['Day / channel', 'Story and format', 'Owner / status'], ['Mon · [Channel]', '[Headline] / [Format]', '[Name] / [Draft]'], ['Tue · [Channel]', '[Headline] / [Format]', '[Name] / [Review]'], ['Wed · [Channel]', '[Headline] / [Format]', '[Name] / [Planned]'], ['Thu · [Channel]', '[Headline] / [Format]', '[Name] / [Planned]'], ['Fri · [Channel]', '[Headline] / [Format]', '[Name] / [Planned]']),
+      h(2, 'Production checklist'), checklist('Confirm sources, permissions and image credits.', 'Review copy, links and accessible image descriptions.', 'Agree approvals and publication times.'),
+      h(2, 'Ideas to develop'), ul('[Idea] · [Audience question it answers]', '[Idea] · [Source or collaborator]'),
+      h(2, 'End-of-week review'), p('[What connected with readers, what did not, and one change for next week.]'),
+    ),
+  },
+  {
+    id: 'storyoutline',
+    name: 'Story Outline',
+    description: 'Build a short story around character, conflict and meaningful scene turns',
+    category: 'Creative',
+    keywords: ['fiction', 'writing', 'novel', 'screenplay', 'author', 'plot'],
+    content: doc(
+      p('WRITING NOTEBOOK', { styleId: 'subtitle' }), h(1, '[Working title]'),
+      p('[Genre] · [Audience] · [Target length]', { styleId: 'subtitle' }),
+      rich({ shading: '#f6f0e9', borderColor: '#875136' }, t('The premise  ', 'bold'), t('[Someone wants something, but something stands in the way.]')),
+      h(2, 'The character at the centre'),
+      table(['Wants', 'Needs', 'Stands to lose'], ['[External goal]', '[Internal change]', '[Stakes]']),
+      h(2, 'World and atmosphere'), p('[Setting, time, point of view and a few concrete sensory details.]'),
+      h(2, 'Story movement'),
+      table(['Beat', 'What happens', 'What changes'], ['Opening', '[Ordinary world and disruption]', '[Question or need]'], ['Complication', '[A choice makes things harder]', '[Cost or discovery]'], ['Turning point', '[The hardest choice]', '[New understanding]'], ['Ending', '[Consequence of the choice]', '[What remains different]']),
+      h(2, 'Scenes to write'), ol('[Scene goal] · [Conflict] · [Turn]', '[Scene goal] · [Conflict] · [Turn]'),
+      h(2, 'Lines and images to keep'), p('[A piece of dialogue, an image or a detail you do not want to lose.]'),
+    ),
+  },
+
   // ------------------------------------------ Resumes and Cover Letters
 
   {
@@ -538,6 +707,7 @@ export const TEMPLATES: Template[] = [
     category: 'Resumes and Cover Letters',
     keywords: ['follow up', 'interview', 'note', 'email', 'job'],
     content: doc(
+      h(1, '[Your Name]'),
       p('[Date]'),
       p(),
       p('Dear [Interviewer name],'),
@@ -849,7 +1019,7 @@ export const TEMPLATES: Template[] = [
   {
     id: 'eventflyer',
     name: 'Event Flyer',
-    description: 'Big headline, the details, and a tear-off line of contacts',
+    description: 'A bold event poster with a clear date, venue and registration line',
     category: 'Flyers',
     keywords: ['poster', 'event', 'announcement', 'community', 'sale'],
     content: doc(
@@ -895,7 +1065,7 @@ export const TEMPLATES: Template[] = [
       p(),
       h(2, 'Details'),
       table(
-        ['', ''],
+        ['Item details', 'Information'],
         ['Condition', '[New / like new / used]'],
         ['Age', '[How old it is]'],
         ['Reason for selling', '[Short and honest]'],
@@ -945,28 +1115,20 @@ export const TEMPLATES: Template[] = [
   {
     id: 'greetingcard',
     name: 'Greeting Card',
-    description: 'Folded quarter-page card: front, inside and a blank back',
+    description: 'A full-page greeting and a separate message page to personalise',
     category: 'Cards',
-    keywords: ['card', 'birthday', 'thank you', 'congratulations', 'fold'],
+    keywords: ['card', 'birthday', 'thank you', 'congratulations', 'message'],
     content: doc(
-      p('Print double-sided and fold twice. This page is the front.', {
-        styleId: 'subtitle',
-      }),
-      p(),
-      p(),
+      p('A little note for you', { textAlign: 'center', styleId: 'subtitle', spaceBefore: 54 }),
       h(1, '[Happy Birthday]', { textAlign: 'center', styleId: 'title' }),
-      p('[A short line, or leave it blank]', { textAlign: 'center', styleId: 'subtitle' }),
+      p('[Name]', { textAlign: 'center', styleId: 'subtitle' }),
+      p('[A short wish, memory or reason to celebrate.]', { textAlign: 'center', spaceBefore: 30 }),
       { type: 'pageBreak' },
-      p('Inside - left panel', { styleId: 'subtitle' }),
-      p(),
+      h(2, 'Dear [Name],'),
       p('[Write the message here. Say the specific thing; that is the whole point of a card.]'),
-      p(),
+      p('[Add a favourite memory or something you are looking forward to together.]'),
       p('[With love,]', { textAlign: 'right' }),
       p('[Your name]', { textAlign: 'right' }),
-      { type: 'pageBreak' },
-      p('Back panel', { styleId: 'subtitle' }),
-      p(),
-      p('[Small note, quotation, or leave blank]', { textAlign: 'center', styleId: 'subtitle' }),
     ),
   },
 
@@ -1085,7 +1247,7 @@ export const TEMPLATES: Template[] = [
   {
     id: 'recipe',
     name: 'Recipe',
-    description: 'Ingredients and numbered method, sized for one card',
+    description: 'A kitchen-ready recipe sheet with ingredients, timings and method',
     category: 'Personal',
     keywords: ['cooking', 'food', 'kitchen', 'card', 'baking'],
     content: doc(
@@ -1154,3 +1316,81 @@ export const TEMPLATES: Template[] = [
     ),
   },
 ];
+
+/** Template typography is stored on document nodes so it survives editing and export. */
+function designTemplate(template: Template): Template {
+  if (template.id === 'blank') return template;
+  const academic = template.id === 'essay';
+  const classic = academic || template.id === 'resume' || template.category === 'Letters';
+  const celebratory = ['Cards', 'Holiday'].includes(template.category);
+  const creative = template.category === 'Creative';
+  const poster = template.category === 'Flyers';
+  const compact = ['resume', 'resume-modern', 'agenda', 'minutes', 'syllabus', 'budget', 'lessonplan', 'proposal'].includes(template.id);
+  const accent = academic || template.id === 'resume' ? '#20252b'
+    : creative ? '#875136'
+      : template.category === 'Education' ? '#496747'
+        : template.category === 'Personal' ? '#236b63'
+          : celebratory ? '#8c4358'
+            : poster ? '#9a4627' : '#24536c';
+  const pale = creative || poster ? '#f6f0e9' : celebratory ? '#fbf0f3'
+    : ['Education', 'Personal'].includes(template.category) ? '#eff5ef' : '#edf5f7';
+  const font = classic ? 'Times New Roman' : celebratory || creative ? 'Georgia' : 'Calibri';
+  const size = academic ? 12 : compact ? 10 : 11;
+  const titleSize = poster ? 36 : celebratory ? 30 : classic ? 22 : creative ? 28 : 26;
+
+  function styleNode(node: Block, context: { size: number; color: string; bold?: boolean; inCell?: boolean } = { size, color: '#27313b' }): Block {
+    if (node.type === 'text') {
+      const current = node.marks?.find(mark => mark.type === 'textStyle')?.attrs ?? {};
+      const marks = (node.marks ?? []).filter(mark => mark.type !== 'textStyle');
+      if (context.bold && !marks.some(mark => mark.type === 'bold')) marks.push({ type: 'bold' });
+      return { ...node, marks: [...marks, { type: 'textStyle', attrs: { fontFamily: font, fontSize: `${context.size}pt`, color: context.color, ...current } }] };
+    }
+    if (node.type === 'table') {
+      const headers = node.content?.[0]?.content ?? [];
+      const weights = headers.map(cell => {
+        const label = cell.content?.flatMap(block => block.content?.map(run => run.text ?? '') ?? []).join(' ').toLowerCase() ?? '';
+        return /description|notes|action|story|deliverable|topic|information|what|check|work item/.test(label) ? 1.8
+          : /time|date|due|qty|rate|cost|amount|step|day|owner|status|weight/.test(label) ? 0.85 : 1.2;
+      });
+      const total = weights.reduce((sum, weight) => sum + weight, 0) || 1;
+      return { ...node, attrs: { ...node.attrs, tableStyle: 'grid' }, content: node.content?.map((row, index) => ({
+        ...row,
+        content: row.content?.map((cell, column) => styleNode({
+          ...cell, attrs: { ...cell.attrs, colwidth: [Math.round(624 * (weights[column] ?? 1) / total)], shading: index === 0 ? pale : index % 2 === 0 ? '#f7f9fa' : '#ffffff' },
+        }, { size: 9.5, color: index === 0 ? accent : '#27313b', bold: index === 0, inCell: true })),
+      })) };
+    }
+    if (node.type === 'paragraph' || node.type === 'heading') {
+      const heading = node.type === 'heading';
+      const level = Number(node.attrs?.level ?? 1);
+      const subtitle = node.attrs?.styleId === 'subtitle';
+      const quote = ['quote', 'intenseQuote'].includes(String(node.attrs?.styleId));
+      const attrs: Record<string, unknown> = {
+        ...(context.inCell ? { textAlign: 'left' } : {}),
+        spaceBefore: heading ? level === 1 ? 4 : compact ? 12 : 18 : 0,
+        spaceAfter: context.inCell ? 2 : heading ? 7 : compact ? 5 : 9,
+        lineHeight: heading ? '1.1' : academic ? '2' : '1.25',
+        ...(heading && level === 2 ? { borderColor: accent, borderSides: 'bottom' } : {}),
+        ...(quote ? { shading: pale, borderColor: accent, borderSides: 'left' } : {}),
+        ...node.attrs,
+      };
+      if (attrs.borderColor) attrs.borderColor = accent;
+      if (attrs.shading) attrs.shading = pale;
+      const next = { ...context, size: heading ? level === 1 ? titleSize : level === 2 ? classic ? 11 : 12 : 11 : subtitle ? 10 : context.size,
+        color: heading ? accent : subtitle ? '#65717d' : context.color, bold: heading || context.bold };
+      return { ...node, attrs, content: node.content?.map(child => styleNode(child, next)) };
+    }
+    return { ...node, content: node.content?.map(child => styleNode(child, context)) };
+  }
+
+  // Spacing belongs to the surrounding paragraphs, rather than blank rows that
+  // consume a full line when users change fonts or paste another section.
+  let blocks = template.content.content.filter(node => node.type !== 'paragraph' || node.content?.length || node.attrs?.shading || node.attrs?.borderColor);
+  if (!academic && !blocks.some(node => node.type === 'heading' && node.attrs?.level === 1)) {
+    blocks = blocks.map((node, index) => index === 0 && node.type === 'paragraph'
+      ? { ...node, type: 'heading', attrs: { ...node.attrs, level: 1 } } : node);
+  }
+  return { ...template, accent, content: doc(...blocks.map(node => styleNode(node))) };
+}
+
+export const TEMPLATES: Template[] = TEMPLATE_CONTENT.map(designTemplate);

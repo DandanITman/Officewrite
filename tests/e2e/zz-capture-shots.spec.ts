@@ -53,6 +53,13 @@ test.describe('site screenshots', () => {
     await page.screenshot({ path: `${SHOTS}/home.png` });
   });
 
+  test('template gallery', async ({ page }) => {
+    await page.getByTestId('home-nav-new').click();
+    await expect(page.getByTestId('template-gallery')).toBeVisible();
+    await expect(page.getByTestId('template-grid').locator('.tp-page').first()).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/templates.png` });
+  });
+
   test('editor with a report', async ({ page }) => {
     await openBlankDocument(page);
     await page.evaluate(() => {
@@ -97,7 +104,19 @@ test.describe('site screenshots', () => {
     await typeInEditor(page, 'Quarterly results');
     await page.keyboard.press('Enter');
     await insertDefaultTable(page);
+    const table = page.getByTestId('word-editor').locator('table').first();
+    const values = [['Quarter', 'Revenue', 'Growth'], ['Q1', '$24,500', '12%'], ['Q2', '$28,400', '16%']];
+    for (let row = 0; row < values.length; row += 1) {
+      for (let column = 0; column < values[row].length; column += 1) {
+        await table.locator('tr').nth(row).locator('th, td').nth(column).click();
+        await page.keyboard.insertText(values[row][column]);
+      }
+    }
+    await switchRibbonTab(page, 'tableLayout');
+    await page.getByTestId('table-style-gallery').click();
+    await page.getByTestId('table-style-bandedRows').click();
     await switchRibbonTab(page, 'insert');
+    await expect(page.getByTestId('status-word-count')).not.toHaveText('0 words');
     await page.screenshot({ path: `${SHOTS}/insert.png` });
   });
 
@@ -130,6 +149,7 @@ test.describe('site screenshots', () => {
     await typeInEditor(page, 'Dear ');
     await insertMergeFieldFor(page, 'First Name');
     await page.getByTestId('mailings-preview-results').click();
+    await expect(page.getByTestId('status-word-count')).not.toHaveText('0 words');
     await page.screenshot({ path: `${SHOTS}/mailings.png` });
   });
 

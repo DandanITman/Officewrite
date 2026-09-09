@@ -60,7 +60,7 @@
         "applicationSubCategory": "Word Processor",
         "operatingSystem": "Windows, Web browser",
         "installUrl": "https://officewrite.com/#download",
-        "softwareVersion": "0.5.0",
+        "softwareVersion": "0.6.0",
         "isAccessibleForFree": true,
         "license": "https://github.com/DandanITman/OfficeWrite/blob/main/LICENSE",
         "codeRepository": "https://github.com/DandanITman/OfficeWrite",
@@ -157,7 +157,8 @@
 
         <div class="tour">
           <div class="tour-tabs" role="tablist" aria-label="Screenshots">
-            <button role="tab" aria-selected="true" data-shot="home">Start screen</button>
+            <button id="tour-tab-home" role="tab" aria-selected="true" data-shot="home">Start screen</button>
+            <button role="tab" aria-selected="false" data-shot="templates">Templates</button>
             <button role="tab" aria-selected="false" data-shot="editor">Writing</button>
             <button role="tab" aria-selected="false" data-shot="insert">Insert</button>
             <button role="tab" aria-selected="false" data-shot="references">References</button>
@@ -167,8 +168,8 @@
             <button role="tab" aria-selected="false" data-shot="dark">Dark mode</button>
           </div>
 
-          <figure class="tour-stage">
-            <img id="tour-image" src="shots/home.png" alt="" width="1440" height="900" />
+          <figure id="tour-panel" class="tour-stage" role="tabpanel" aria-labelledby="tour-tab-home">
+            <img id="tour-image" src="shots/home.png" alt="Officewrite: Start screen" width="1440" height="900" />
             <figcaption id="tour-caption">
               Pick up where you left off, or start from a template.
             </figcaption>

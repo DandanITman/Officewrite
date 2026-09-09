@@ -197,7 +197,7 @@ export function RibbonPopover({
         surfaceRef.current?.querySelectorAll<HTMLElement>(
           '[role="menuitem"]:not([disabled]), button:not([disabled]), input, select',
         ) ?? [],
-      );
+      ).filter((item) => item.tabIndex >= 0);
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {

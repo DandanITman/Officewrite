@@ -15,15 +15,22 @@ export interface LaunchedApp {
 }
 
 /**
- * Launch the real packaged main process against a throwaway userData
+ * Launch the built main process, or an explicitly supplied packaged executable,
+ * against a throwaway userData
  * directory, so settings, recents and revision history start clean and never
  * touch the developer's own profile.
  */
 export async function launchApp(args: string[] = []): Promise<LaunchedApp> {
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'officewrite-e2e-'));
+  const executablePath = process.env.OFFICEWRITE_ELECTRON_EXECUTABLE;
 
   const app = await electron.launch({
-    args: [path.join(desktopRoot, 'dist-electron/main.js'), `--user-data-dir=${userDataDir}`, ...args],
+    ...(executablePath ? { executablePath } : {}),
+    args: [
+      ...(executablePath ? [] : [path.join(desktopRoot, 'dist-electron/main.js')]),
+      `--user-data-dir=${userDataDir}`,
+      ...args,
+    ],
     cwd: desktopRoot,
     env: { ...process.env, NODE_ENV: 'production', ELECTRON_ENABLE_LOGGING: '1' },
   });

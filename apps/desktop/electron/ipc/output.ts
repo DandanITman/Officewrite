@@ -1,7 +1,5 @@
 import { ipcMain, type BrowserWindow } from 'electron';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { ensureDir } from '../store';
+import { writeFileAtomically } from '../atomicFile';
 import { importDocFile } from '../docImport';
 import { checkWords, suggestWord } from '../spell';
 import { addToUserDictionary, getUserDictionary, isKnownWord } from '../userDictionary';
@@ -56,8 +54,7 @@ export function registerOutputIpc(getWindow: () => BrowserWindow | null) {
     });
 
     if (savePath) {
-      ensureDir(path.dirname(savePath));
-      await fs.writeFile(savePath, pdf);
+      await writeFileAtomically(savePath, pdf);
     }
     return pdf;
   });

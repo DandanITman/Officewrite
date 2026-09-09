@@ -2,6 +2,7 @@ import { app } from 'electron';
 import fs from 'node:fs/promises';
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { writeFileAtomically } from './atomicFile';
 
 export const dataDir = path.join(app.getPath('userData'), 'data');
 export const settingsPath = path.join(dataDir, 'settings.json');
@@ -76,5 +77,5 @@ export async function readJson<T>(filePath: string, fallback: T): Promise<T> {
 
 export async function writeJson(filePath: string, data: unknown) {
   ensureDataDir();
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  await writeFileAtomically(filePath, JSON.stringify(data, null, 2));
 }

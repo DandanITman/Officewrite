@@ -129,4 +129,64 @@ test.describe('Template previews', () => {
     await expect(grid.locator('.home-tpl-card-wrap')).toHaveCount(1);
     await expect(grid.getByTestId('template-preview-invoice')).toBeVisible();
   });
+
+  test('Creative filters, result counts and clear filters keep the gallery usable', async ({ page }) => {
+    await page.getByTestId('home-nav-new').click();
+    await page.getByRole('button', { name: 'Creative', exact: true }).click();
+    await expect(page.getByTestId('template-result-count')).toHaveText('4 templates in Creative');
+    await page.getByTestId('template-search').fill('studio');
+    await expect(page.getByTestId('template-result-count')).toHaveText('1 template in Creative');
+    await expect(page.getByTestId('home-template-creativebrief')).toBeVisible();
+    await page.getByTestId('template-search').fill('nothing matches this query');
+    await expect(page.getByTestId('template-result-count')).toHaveText('0 templates in Creative');
+    await page.getByTestId('template-clear-filters').click();
+    await expect(page.getByTestId('template-search')).toHaveValue('');
+    await expect(page.getByRole('button', { name: 'All', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('template-grid').locator('.home-tpl-card-wrap')).toHaveCount(39);
+  });
+
+  test('preview shows the second greeting page and keeps keyboard focus inside', async ({ page }) => {
+    await page.getByTestId('home-nav-new').click();
+    await page.getByTestId('template-search').fill('Greeting Card');
+    const trigger = page.getByTestId('home-template-preview-greetingcard');
+    await trigger.click();
+    const dialog = page.getByTestId('template-preview-dialog');
+    await expect(dialog.getByLabel('Template page 2', { exact: true })).toContainText('Dear [Name],');
+    await expect(page.getByTestId('template-preview-close')).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.getByTestId('template-preview-create')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.getByTestId('template-preview-close')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  for (const [id, query, heading, section] of [
+    ['projectbrief', 'Project Brief', '[Project name]', 'Success measures'],
+    ['decisionlog', 'Decision Log', '[Decision to make]', 'Options considered'],
+    ['handover', 'Project Handover', '[Project or role]', 'First-week checklist'],
+    ['procedure', 'Standard Operating Procedure', '[Process name]', 'Exceptions and escalation'],
+    ['creativebrief', 'Creative Brief', '[Make something that matters]', 'Creative guardrails'],
+    ['casestudy', 'Portfolio Case Study', '[Project title]', 'Reflection and credits'],
+    ['editorialcalendar', 'Editorial Calendar', 'A week of good stories', 'Publishing schedule'],
+    ['storyoutline', 'Story Outline', '[Working title]', 'Story movement'],
+  ]) {
+    test(`creates ${query} with its document layout and editable content`, async ({ page }) => {
+      await page.getByTestId('home-nav-new').click();
+      await page.getByTestId('template-search').fill(query);
+      await page.getByTestId(`home-template-preview-${id}`).click();
+      await expect(page.getByTestId('template-preview-dialog')).toContainText(section);
+      await page.getByTestId('template-preview-create').click();
+      const editor = page.getByTestId('word-editor');
+      await expect(editor.locator('h1')).toHaveText(heading);
+      await expect(editor).toContainText(section);
+      await expect(editor.locator('table').first()).toBeVisible();
+      await expect(editor.locator('h1 span[style*="font-size"]').first()).toHaveCSS('font-size', id === 'creativebrief' || id === 'casestudy' || id === 'editorialcalendar' || id === 'storyoutline' ? '37.3333px' : '34.6667px');
+      await editor.locator('h1').click();
+      await page.keyboard.press('End');
+      await page.keyboard.type(' revised');
+      await expect(editor.locator('h1')).toContainText('revised');
+    });
+  }
 });

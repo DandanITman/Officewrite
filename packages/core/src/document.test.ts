@@ -43,11 +43,13 @@ describe('document envelope', () => {
     expect(restored.customStyles.length).toBeGreaterThan(0);
   });
 
-  it('returns a blank envelope for invalid file data', () => {
-    const restored = parseOfficewriteFile(null);
-    expect(restored.content).toEqual({
-      type: 'doc',
-      content: [{ type: 'paragraph' }],
-    });
+  it.each([null, {}, [], { content: 'broken' }, { content: { type: 'paragraph' } }, { content: { type: 'doc', content: 'broken' } }])
+  ('rejects invalid native files instead of replacing them with a blank document: %j', (invalid) => {
+    expect(() => parseOfficewriteFile(invalid)).toThrow('Invalid Officewrite file');
+  });
+
+  it('continues to open older native files with valid content and no optional settings', () => {
+    const content = { type: 'doc', content: [{ type: 'paragraph' }] };
+    expect(parseOfficewriteFile({ version: 1, content }).content).toEqual(content);
   });
 });

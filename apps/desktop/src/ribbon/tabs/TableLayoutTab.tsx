@@ -12,7 +12,6 @@ import {
   Table2,
   Trash2,
 } from 'lucide-react';
-import { CellSelection, selectedRect } from '@tiptap/pm/tables';
 import {
   cellSize,
   clearWidths,
@@ -22,7 +21,13 @@ import {
   pxToIn,
   setColumnWidth,
   setRowHeight,
+  fitTableToWindow,
+  selectTablePart,
+  rectOf,
+  canSortTable,
+  sortTableRows,
 } from '../../utils/tableSizing';
+import '../../styles/tables.css';
 import { ColorPickerButton } from '../../components/ColorPickerButton';
 import { SHADING_COLORS } from '../../constants/colorSwatches';
 import { TABLE_STYLES } from '../../extensions/TableFormatting';
@@ -46,37 +51,8 @@ import type { RibbonTabProps } from '../types';
 export function TableLayoutTab({ editor, state, actions }: RibbonTabProps) {
   const chain = () => editor?.chain().focus();
 
-  /**
-   * The Select menu scopes to the table part, never the document. Going
-   * through prosemirror-tables' own rect keeps "Select Table" from becoming
-   * Select All, which would let the next keystroke wipe the document.
-   */
-  const selectTablePart = (part: 'row' | 'column' | 'table') => {
-    if (!editor) return;
-    const { state: pmState } = editor.view;
-    // selectedRect throws outside a table rather than returning null.
-    let rect;
-    try {
-      rect = selectedRect(pmState);
-    } catch {
-      return;
-    }
-    const anchorCell =
-      part === 'row' ? rect.map.map[rect.top * rect.map.width]
-      : part === 'column' ? rect.map.map[rect.left]
-      : rect.map.map[0];
-    const headCell =
-      part === 'row' ? rect.map.map[rect.top * rect.map.width + rect.map.width - 1]
-      : part === 'column' ? rect.map.map[(rect.map.height - 1) * rect.map.width + rect.left]
-      : rect.map.map[rect.map.width * rect.map.height - 1];
-    const tr = pmState.tr.setSelection(
-      CellSelection.create(pmState.doc, rect.tableStart + anchorCell, rect.tableStart + headCell),
-    );
-    editor.view.dispatch(tr);
-    editor.view.focus();
-  };
-
   const cell = cellSize(editor);
+  const rect = rectOf(editor);
 
   return (
     <>
@@ -88,10 +64,10 @@ export function TableLayoutTab({ editor, state, actions }: RibbonTabProps) {
             title="Select part of the table"
             testId="table-select"
           >
-            <RibbonMenuItem label="Select Cell" onClick={() => chain()?.selectParentNode().run()} />
-            <RibbonMenuItem label="Select Column" onClick={() => selectTablePart('column')} />
-            <RibbonMenuItem label="Select Row" onClick={() => selectTablePart('row')} />
-            <RibbonMenuItem label="Select Table" onClick={() => selectTablePart('table')} />
+            <RibbonMenuItem label="Select Cell" onClick={() => selectTablePart(editor, 'cell')} />
+            <RibbonMenuItem label="Select Column" onClick={() => selectTablePart(editor, 'column')} />
+            <RibbonMenuItem label="Select Row" onClick={() => selectTablePart(editor, 'row')} />
+            <RibbonMenuItem label="Select Table" onClick={() => selectTablePart(editor, 'table')} />
           </RibbonMenuButton>
           <RibbonButton
             icon={<Settings2 size={14} />}
@@ -100,6 +76,9 @@ export function TableLayoutTab({ editor, state, actions }: RibbonTabProps) {
             onClick={actions.onOpenTableProperties}
             testId="table-properties"
           />
+          <span className="table-context-summary" data-testid="table-context-summary" title="Tab moves to the next cell and adds a row at the end. Shift+click selects cells; drag a border to resize.">
+            {rect ? `${rect.map.height} × ${rect.map.width} table` : 'Table tools'}
+          </span>
         </RibbonStack>
       </RibbonGroup>
 
@@ -172,13 +151,15 @@ export function TableLayoutTab({ editor, state, actions }: RibbonTabProps) {
             icon={<Combine size={14} />}
             label="Merge Cells"
             title="Merge the selected cells"
+            disabled={!editor?.can().mergeCells()}
             onClick={() => chain()?.mergeCells().run()}
             testId="table-merge-cells"
           />
           <RibbonButton
             icon={<Split size={14} />}
             label="Split Cells"
-            title="Split the current cell"
+            title="Restore the separate cells in a merged cell"
+            disabled={!editor?.can().splitCell()}
             onClick={() => chain()?.splitCell().run()}
             testId="table-split-cell"
           />
@@ -243,7 +224,7 @@ export function TableLayoutTab({ editor, state, actions }: RibbonTabProps) {
             />
             <RibbonMenuItem
               label="AutoFit Window"
-              onClick={() => distributeColumns(editor)}
+              onClick={() => fitTableToWindow(editor)}
               testId="table-autofit-window"
             />
             <RibbonMenuItem
@@ -292,41 +273,44 @@ export function TableLayoutTab({ editor, state, actions }: RibbonTabProps) {
           <RibbonMenuButton
             icon={<ArrowDownAZ size={14} />}
             label="Sort"
-            title="Sort the paragraphs or rows"
+            title={canSortTable(editor) ? 'Sort rows by the current column; the header stays first' : 'Split merged cells before sorting rows'}
+            disabled={!canSortTable(editor)}
             testId="table-sort"
           >
-            <RibbonMenuItem label="Ascending (A to Z)" onClick={() => actions.onSortParagraphs('asc')} />
-            <RibbonMenuItem label="Descending (Z to A)" onClick={() => actions.onSortParagraphs('desc')} />
+            <RibbonMenuItem label="Ascending (A to Z)" onClick={() => sortTableRows(editor, 'asc')} />
+            <RibbonMenuItem label="Descending (Z to A)" onClick={() => sortTableRows(editor, 'desc')} />
           </RibbonMenuButton>
           <RibbonButton
             icon={<Grid3x3 size={14} />}
-            label="Fix Columns"
+            label="Reset Widths"
             title="Reset the column widths"
-            onClick={() => chain()?.fixTables().run()}
+            onClick={() => clearWidths(editor)}
             testId="table-fix-columns"
           />
         </RibbonStack>
       </RibbonGroup>
 
       <RibbonGroup label="Table Styles">
-        <RibbonLine>
-          {TABLE_STYLES.map((style) => (
+        <RibbonStack>
+          <RibbonMenuButton icon={<Table2 size={14} />} label="Styles" title="Choose a table style" testId="table-style-gallery" menuWidth={260}>
+          {(close) => <div className="table-style-options">{TABLE_STYLES.map((style) => (
             <button
               key={style.id}
               type="button"
-              className={`rb-table-style-tile style-${style.id}${
+              className={`table-style-option${
                 state.tableStyle === style.id ? ' is-active' : ''
               }`}
               title={style.label}
               aria-label={style.label}
+              aria-pressed={state.tableStyle === style.id}
               data-testid={`table-style-${style.id}`}
-              onClick={() => chain()?.setTableStyle(style.id).run()}
+              onClick={() => { chain()?.setTableStyle(style.id).run(); close(); }}
             >
-              <span />
-              <span />
-              <span />
+              <span className={`rb-table-style-tile style-${style.id}`} aria-hidden><span /><span /><span /></span>
+              <span>{style.label}</span>
             </button>
-          ))}
+          ))}</div>}
+          </RibbonMenuButton>
           <ColorPickerButton
             title="Cell Shading"
             colors={SHADING_COLORS}
@@ -336,7 +320,7 @@ export function TableLayoutTab({ editor, state, actions }: RibbonTabProps) {
             <span className="rb-glyph">▨</span>
             <span className="rb-btn-label">Shading</span>
           </ColorPickerButton>
-        </RibbonLine>
+        </RibbonStack>
       </RibbonGroup>
     </>
   );

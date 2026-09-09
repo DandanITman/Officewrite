@@ -52,6 +52,7 @@ function prettySize(bytes) {
  */
 const SHOTS = {
   home: 'Pick up where you left off, or start from a template.',
+  templates: 'Browse editable templates for work, study and creative projects, with a preview before you start.',
   editor: 'The Home tab: clipboard, font, paragraph, a live styles gallery, and find.',
   insert: 'Tables, pictures, shapes, links, headers and footers, symbols and emoji.',
   references: 'Contents, footnotes, citations and bibliography, captions and an index.',
@@ -65,6 +66,7 @@ function setUpTour() {
   const tabs = Array.from(document.querySelectorAll('.tour-tabs button'));
   const image = document.getElementById('tour-image');
   const caption = document.getElementById('tour-caption');
+  const panel = document.getElementById('tour-panel');
   if (!tabs.length || !image || !caption) return;
 
   const show = (tab) => {
@@ -76,9 +78,12 @@ function setUpTour() {
     image.src = `shots/${shot}.png`;
     image.alt = `Officewrite: ${tab.textContent.trim()}`;
     caption.textContent = SHOTS[shot] ?? '';
+    panel?.setAttribute('aria-labelledby', tab.id);
   };
 
   tabs.forEach((tab) => {
+    tab.id = `tour-tab-${tab.dataset.shot}`;
+    tab.setAttribute('aria-controls', 'tour-panel');
     tab.tabIndex = tab.getAttribute('aria-selected') === 'true' ? 0 : -1;
     tab.addEventListener('click', () => show(tab));
     // A tablist owes arrow-key navigation, the same as the app's own ribbon.

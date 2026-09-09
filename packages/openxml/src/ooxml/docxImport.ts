@@ -10,6 +10,7 @@ import {
   type PageSizePreset,
 } from '@officewrite/core';
 import { DocxPackage } from './package';
+import { TABLE_STYLE_IDS, BANDED_ROWS_WITHOUT_HEADER } from '../tableStyles';
 import {
   attr,
   boolProp,
@@ -149,8 +150,15 @@ function paragraphAttrs(pPr: XmlNode | undefined): Record<string, unknown> {
     }
   }
 
-  const borderColor = attr(path(pPr, 'w:pBdr', 'w:left'), 'w:color');
-  if (borderColor && borderColor !== 'auto') attrs.borderColor = `#${borderColor}`;
+  const borderedSides = ['top', 'bottom', 'left', 'right'].filter(side => {
+    const border = path(pPr, 'w:pBdr', `w:${side}`);
+    return border && !['nil', 'none'].includes(attr(border, 'w:val') ?? 'single');
+  });
+  const borderColor = attr(path(pPr, 'w:pBdr', `w:${borderedSides[0]}`), 'w:color');
+  if (borderColor && borderColor !== 'auto') {
+    attrs.borderColor = `#${borderColor}`;
+    attrs.borderSides = borderedSides.length === 4 ? 'all' : borderedSides[0];
+  }
 
   const shading = attr(child(pPr, 'w:shd'), 'w:fill');
   if (shading && shading !== 'auto') attrs.shading = `#${shading}`;
@@ -416,26 +424,44 @@ function paragraphNode(p: XmlNode, ctx: RunContext, styleName: string | undefine
 
 function tableNode(tbl: XmlNode, ctx: RunContext, styleOf: (p: XmlNode) => string | undefined): TipTapNode {
   const rows: TipTapNode[] = [];
+  const grid = children(child(tbl, 'w:tblGrid'), 'w:gridCol').map((column) => twipsToPx(attr(column, 'w:w') ?? '0'));
+  const merges = new Map<number, { node: TipTapNode; row: number }>();
 
   for (const [rowIndex, tr] of children(tbl, 'w:tr').entries()) {
     const cells: TipTapNode[] = [];
-    const isHeaderRow = rowIndex === 0 && !!path(tr, 'w:trPr', 'w:tblHeader');
+    const isHeaderRow = !!path(tr, 'w:trPr', 'w:tblHeader');
+    let column = 0;
 
     for (const tc of children(tr, 'w:tc')) {
       const tcPr = child(tc, 'w:tcPr');
-      const span = Number(val(tcPr, 'w:gridSpan') ?? 1);
-      // A continuation cell of a vertical merge carries no content of its own.
-      if (attr(child(tcPr, 'w:vMerge'), 'w:val') === undefined && child(tcPr, 'w:vMerge')) continue;
+      const rawSpan = Number(val(tcPr, 'w:gridSpan') ?? 1);
+      const span = Number.isFinite(rawSpan) && rawSpan > 0 ? Math.floor(rawSpan) : 1;
+      const merge = child(tcPr, 'w:vMerge');
+      // Continuations extend their originating cell instead of leaving holes
+      // that the editor would repair by inserting blank cells.
+      if (merge && attr(merge, 'w:val') !== 'restart') {
+        const origin = merges.get(column);
+        if (origin) {
+          origin.node.attrs = { ...origin.node.attrs, rowspan: rowIndex - origin.row + 1 };
+          column += span;
+          continue;
+        }
+      }
 
       const cellAttrs: Record<string, unknown> = {};
       if (Number.isFinite(span) && span > 1) cellAttrs.colspan = span;
 
       const width = attr(child(tcPr, 'w:tcW'), 'w:w');
       if (width && attr(child(tcPr, 'w:tcW'), 'w:type') === 'dxa') {
-        cellAttrs.colwidth = [twipsToPx(width)];
+        const declared = grid.slice(column, column + span);
+        cellAttrs.colwidth = declared.length === span && declared.every((value) => value > 0)
+          ? declared : Array(span).fill(Math.round(twipsToPx(width) / span));
       }
       const fill = attr(child(tcPr, 'w:shd'), 'w:fill');
-      if (fill && fill !== 'auto') cellAttrs.backgroundColor = `#${fill}`;
+      if (fill && fill !== 'auto') {
+        cellAttrs.shading = `#${fill}`;
+        cellAttrs.backgroundColor = `#${fill}`;
+      }
 
       const cellContent: TipTapNode[] = [];
       for (const node of tc.children) {
@@ -444,17 +470,26 @@ function tableNode(tbl: XmlNode, ctx: RunContext, styleOf: (p: XmlNode) => strin
       }
       if (!cellContent.length) cellContent.push({ type: 'paragraph' });
 
-      cells.push({
+      const cell: TipTapNode = {
         type: isHeaderRow ? 'tableHeader' : 'tableCell',
         attrs: cellAttrs,
         content: cellContent,
-      });
+      };
+      cells.push(cell);
+      for (let offset = 0; offset < span; offset += 1) merges.delete(column + offset);
+      if (merge && attr(merge, 'w:val') === 'restart') merges.set(column, { node: cell, row: rowIndex });
+      column += span;
     }
 
-    if (cells.length) rows.push({ type: 'tableRow', content: cells });
+    const height = attr(path(tr, 'w:trPr', 'w:trHeight'), 'w:val');
+    rows.push({ type: 'tableRow', ...(height ? { attrs: { height: twipsToPx(height) } } : {}), content: cells });
   }
 
-  return { type: 'table', content: rows.length ? rows : [{ type: 'tableRow', content: [] }] };
+  const styleId = val(child(tbl, 'w:tblPr'), 'w:tblStyle');
+  const tableStyle = styleId === BANDED_ROWS_WITHOUT_HEADER ? 'bandedRows'
+    : Object.entries(TABLE_STYLE_IDS).find(([, id]) => id === styleId)?.[0] ?? 'grid';
+  const tableLayout = attr(path(tbl, 'w:tblPr', 'w:tblLayout'), 'w:type') === 'autofit' ? 'auto' : 'fixed';
+  return { type: 'table', attrs: { tableStyle, tableLayout }, content: rows.length ? rows : [{ type: 'tableRow', content: [] }] };
 }
 
 function pageSetupFromSectPr(sectPr: XmlNode | undefined): PageSetup {
@@ -484,12 +519,18 @@ function pageSetupFromSectPr(sectPr: XmlNode | undefined): PageSetup {
   }
 
   const pgMar = child(sectPr, 'w:pgMar');
+  const margin = (side: keyof PageSetup['margins']) => {
+    const value = attr(pgMar, `w:${side}`);
+    return value !== undefined && Number.isFinite(Number(value))
+      ? twipsToPx(value)
+      : DEFAULT_PAGE_SETUP.margins[side];
+  };
   const margins = pgMar
     ? {
-        top: twipsToPx(attr(pgMar, 'w:top')) || DEFAULT_PAGE_SETUP.margins.top,
-        bottom: twipsToPx(attr(pgMar, 'w:bottom')) || DEFAULT_PAGE_SETUP.margins.bottom,
-        left: twipsToPx(attr(pgMar, 'w:left')) || DEFAULT_PAGE_SETUP.margins.left,
-        right: twipsToPx(attr(pgMar, 'w:right')) || DEFAULT_PAGE_SETUP.margins.right,
+        top: margin('top'),
+        bottom: margin('bottom'),
+        left: margin('left'),
+        right: margin('right'),
       }
     : { ...DEFAULT_PAGE_SETUP.margins };
 

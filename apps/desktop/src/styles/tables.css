@@ -1,0 +1,90 @@
+.table-context-summary {
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+  padding: 3px 4px;
+}
+.ribbon-tab[data-tab='tableLayout'] { white-space: nowrap; flex-shrink: 0; }
+.table-style-options { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 8px; }
+.table-style-option { display: flex; align-items: center; gap: 7px; padding: 6px; text-align: left; font-size: 11px; border: 1px solid transparent; border-radius: 4px; color: var(--text-primary); background: transparent; }
+.table-style-option.is-active, .table-style-option:hover { border-color: var(--accent); background: var(--bg-hover); }
+.table-style-option .rb-table-style-tile {
+  --preview-border: #aab4c1;
+  --preview-header: #e5e7eb;
+  --preview-grid: linear-gradient(to right,
+    transparent 30%, var(--preview-border) 30%, var(--preview-border) 34%,
+    transparent 34%, transparent 65%, var(--preview-border) 65%,
+    var(--preview-border) 69%, transparent 69%);
+  width: 33px;
+  min-width: 33px;
+  height: 28px;
+  gap: 0;
+  background: #fff;
+}
+.table-style-option .rb-table-style-tile span {
+  flex: 1;
+  height: auto;
+  border: 1px solid var(--preview-border);
+  border-bottom: 0;
+  border-radius: 0;
+  background: var(--preview-grid);
+}
+.table-style-option .rb-table-style-tile span:first-child { background-color: var(--preview-header); }
+.table-style-option .rb-table-style-tile span:last-child { border-bottom: 1px solid var(--preview-border); }
+.table-style-option .rb-table-style-tile.style-gridAccent { --preview-border: #93b4db; --preview-header: #d8e7f8; }
+.table-style-option .rb-table-style-tile.style-listAccent { --preview-header: #d8e7f8; }
+.table-style-option .rb-table-style-tile.style-listAccent span:not(:first-child) { border-left-color: transparent; border-right-color: transparent; background: none; }
+.table-style-option .rb-table-style-tile.style-bandedRows span:nth-child(2) { background: var(--preview-grid) #e8eff8; }
+.table-style-option .rb-table-style-tile.style-bandedColumns span:not(:first-child) {
+  background: linear-gradient(to right,
+    transparent 30%, var(--preview-border) 30%, var(--preview-border) 34%,
+    #e8eff8 34%, #e8eff8 65%, var(--preview-border) 65%,
+    var(--preview-border) 69%, transparent 69%);
+}
+.table-style-option .rb-table-style-tile.style-plain span,
+.table-style-option .rb-table-style-tile.style-borderless span {
+  border-color: transparent;
+  background: linear-gradient(to right, #aab4c1 55%, transparent 55%) left center / 100% 1px no-repeat;
+}
+.table-style-option .rb-table-style-tile.style-plain span:first-child { border-bottom: 2px solid #94a3b8; background-color: #e5e7eb; }
+.table-style-option .rb-table-style-tile.style-plain span:last-child,
+.table-style-option .rb-table-style-tile.style-borderless span:last-child { border-bottom-color: transparent; }
+.table-style-option .rb-table-style-tile.style-borderless span:first-child { background-color: transparent; }
+
+.table-custom-form {
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  padding: 12px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.table-custom-form label { display: grid; gap: 4px; }
+.table-custom-form input[type='number'] { width: 100%; min-width: 0; }
+.table-custom-form .table-header-choice { grid-column: 1 / -1; display: flex; align-items: center; gap: 7px; }
+.table-custom-form button { grid-column: 1 / -1; justify-content: center; }
+.table-picker-help { margin: 8px 0 0; color: var(--text-muted); font-size: 11px; }
+.table-properties-help { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.rb-table-grid .rb-table-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ProseMirror .selectedCell::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  z-index: 2;
+}
+
+.ProseMirror .doc-table.style-plain > tbody > tr > :is(td, th),
+.ProseMirror .doc-table.style-borderless > tbody > tr > :is(td, th) { border-color: transparent; }
+.ProseMirror .doc-table.style-plain > tbody > tr > th { border-bottom: 2px solid #94a3b8; }
+.ProseMirror .doc-table.style-gridAccent > tbody > tr > :is(td, th) { border-color: #93b4db; }
+.ProseMirror .doc-table.style-gridAccent > tbody > tr > th,
+.ProseMirror .doc-table.style-listAccent > tbody > tr > th { background: #d8e7f8; }
+.ProseMirror .doc-table.style-listAccent > tbody > tr > td { border-left-color: transparent; border-right-color: transparent; }
+.ProseMirror .doc-table.style-bandedRows > tbody > tr:nth-child(even) > td { background: #e8eff8; }
+.ProseMirror .doc-table.style-bandedColumns > tbody > tr > td:nth-child(even) { background: #e8eff8; }
+.ProseMirror .doc-table.style-borderless > tbody > tr > :is(td, th) { background: transparent; }

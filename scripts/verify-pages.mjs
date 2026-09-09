@@ -18,7 +18,7 @@ const required = [
   // Catches every stale URL, including the two article pages folded into the
   // home page. Without it GitHub serves its own generic 404.
   'docs/404.html',
-  ...['home', 'editor', 'insert', 'references', 'review', 'mailings', 'navigation', 'dark']
+  ...['home', 'templates', 'editor', 'insert', 'references', 'review', 'mailings', 'navigation', 'dark']
     .map((shot) => `docs/shots/${shot}.png`),
 ];
 if (process.argv.includes('--built')) required.push('docs/app/index.html');

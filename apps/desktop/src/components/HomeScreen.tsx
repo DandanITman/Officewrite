@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Home,
   FilePlus,
@@ -51,6 +51,7 @@ interface HomeScreenProps {
 const CATEGORY_COLOR: Record<string, string> = {
   Basic: '#2563eb',
   Business: '#0891b2',
+  Creative: '#875136',
   'Resumes and Cover Letters': '#059669',
   Letters: '#7c3aed',
   Education: '#d97706',
@@ -77,7 +78,7 @@ const FEATURED_TEMPLATE_IDS = [
 ];
 
 function colorFor(template: Template) {
-  return CATEGORY_COLOR[template.category] ?? CATEGORY_COLOR.Basic;
+  return template.accent ?? CATEGORY_COLOR[template.category] ?? CATEGORY_COLOR.Basic;
 }
 
 function formatDate(ts: number) {
@@ -116,11 +117,13 @@ function TemplateCard({
         data-testid={`home-template-${template.id}`}
         onClick={onPick}
         title={template.description}
+        aria-label={`Create ${template.name}`}
       >
         <div className="home-tpl-thumb" style={{ borderColor: colorFor(template) }}>
           <TemplatePreview template={template} />
         </div>
-        <span>{template.name}</span>
+        {showDescription && <small className="home-tpl-category">{template.category}</small>}
+        <span className="home-tpl-name">{template.name}</span>
         {showDescription && <small className="home-tpl-desc">{template.description}</small>}
       </button>
       <button
@@ -154,18 +157,33 @@ function TemplatePreviewDialog({
   onCreate: () => void;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+      if (event.key === 'Tab') {
+        const controls = dialogRef.current?.querySelectorAll<HTMLElement>('button, [href], input, [tabindex="0"]');
+        if (!controls?.length) return;
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
   }, [onClose]);
 
   return (
     <div className="backdrop" onClick={onClose}>
       <div
         className="dialog panel-card template-preview-dialog"
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${template.name} preview`}
@@ -351,32 +369,20 @@ export function HomeScreen({
         <main className="home-main" data-testid="template-gallery">
           <header className="home-main-header">
             <div>
-              <h1>New</h1>
+              <h1>Find your starting point</h1>
               <p className="home-greeting">
-                {TEMPLATES.length} templates, all editable. Nothing here is locked or paid for.
+                {TEMPLATES.length - 1} ready-to-edit templates for work, study and everything you create.
               </p>
             </div>
             <div className="home-header-actions">
+              <button className="home-header-chip" onClick={() => onNewFromTemplate('blank')} data-testid="gallery-blank-template">
+                <FilePlus size={15} /> Blank document
+              </button>
               <button className="home-header-chip" onClick={() => setSidebarItem('home')}>
                 <ChevronLeft size={14} /> Back to Home
               </button>
             </div>
           </header>
-
-          <div className="home-template-rail-scroll">
-            <div className="home-template-rail">
-              <button
-                className="home-tpl-card home-tpl-blank"
-                onClick={() => onNewFromTemplate('blank')}
-                data-testid="gallery-blank-template"
-              >
-                <div className="home-tpl-thumb blank">
-                  <FilePlus size={32} strokeWidth={1.5} />
-                </div>
-                <span>Blank Document</span>
-              </button>
-            </div>
-          </div>
 
           <div className="home-template-search">
             <Search size={16} />
@@ -394,6 +400,7 @@ export function HomeScreen({
             <span className="home-filter-label">Categories:</span>
             <button
               className={category === null ? 'home-filter-chip active' : 'home-filter-chip'}
+              aria-pressed={category === null}
               onClick={() => setCategory(null)}
             >
               All
@@ -402,11 +409,18 @@ export function HomeScreen({
               <button
                 key={name}
                 className={category === name ? 'home-filter-chip active' : 'home-filter-chip'}
+                aria-pressed={category === name}
                 onClick={() => setCategory(category === name ? null : name)}
               >
                 {name}
               </button>
             ))}
+          </div>
+
+          <div className="home-template-results">
+            <span role="status" data-testid="template-result-count">{results.length} {results.length === 1 ? 'template' : 'templates'}{category ? ` in ${category}` : ''}</span>
+            {(query || category) && <button className="home-clear-filters" data-testid="template-clear-filters" onClick={() => { setQuery(''); setCategory(null); }}>Clear filters</button>}
+            <span className="home-template-hint">Preview a page, then make it yours.</span>
           </div>
 
           {results.length === 0 ? (

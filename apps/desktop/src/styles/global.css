@@ -1921,8 +1921,24 @@ select:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 22px;
+  margin-bottom: 14px;
 }
+
+.home-template-results {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.home-template-hint { margin-left: auto; color: var(--text-muted); }
+.home-clear-filters { border: 0; padding: 0; background: transparent; color: var(--accent); cursor: pointer; text-decoration: underline; }
+.home-tpl-category { margin: 0 0 5px; color: var(--text-muted); font-size: 10px; font-weight: 500; }
+.home-tpl-name { font-size: 13px; font-weight: 600; color: var(--text); }
+[data-testid="template-gallery"] .home-main-header { flex-wrap: wrap; gap: 16px; }
+[data-testid="template-gallery"] .home-header-actions { flex-wrap: wrap; }
 
 .home-filter-label {
   color: var(--text-muted);
@@ -1972,6 +1988,7 @@ select:focus-visible {
   width: 100%;
   display: flex;
   flex-direction: column;
+  text-align: left;
 }
 
 .home-tpl-desc {
@@ -2051,7 +2068,8 @@ select:focus-visible {
 
 .tp-page:not(.tp-thumb) {
   padding: 46px 52px;
-  font-size: 11px;
+  /* 414px of content represents the editor's 624px writing area. */
+  font-size: 9.75px;
 }
 
 .tp-blank {
@@ -2078,11 +2096,10 @@ select:focus-visible {
   /* Headings are the part of a thumbnail people actually squint at, so they
      get the extra weight and a little tracking rather than more size. */
   letter-spacing: -0.01em;
+  font-size: inherit;
 }
 
-.tp-h1 { font-size: 2.15em; }
-.tp-h2 { font-size: 1.5em; margin-top: 0.65em; color: #1d4ed8; }
-.tp-h3 { font-size: 1.2em; margin-top: 0.5em; }
+.tp-h1, .tp-h2, .tp-h3 { font-size: inherit; }
 
 .tp-p {
   margin: 0 0 0.28em;
@@ -2091,7 +2108,6 @@ select:focus-visible {
 
 .tp-subtitle {
   color: #64748b;
-  font-style: italic;
 }
 
 .tp-gap {
@@ -2131,9 +2147,8 @@ select:focus-visible {
   padding: 0.25em 0.35em;
   text-align: left;
   overflow: hidden;
-  /* Long cells must clip rather than push the table wider than the page. */
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  vertical-align: top;
   color: #334155;
 }
 
@@ -2175,8 +2190,7 @@ select:focus-visible {
 }
 
 .template-preview-stage {
-  display: flex;
-  justify-content: center;
+  display: block;
   padding: 16px;
   background: var(--bg-subtle, #f1f5f9);
   border: 1px solid var(--border);
@@ -2185,11 +2199,19 @@ select:focus-visible {
   overflow: auto;
 }
 
-.template-preview-stage .tp-page {
-  /* US Letter at 8.5:11, so the preview is the shape of the real page. */
-  width: 520px;
+.tp-document {
+  width: min(520px, 100%);
+  margin: 0 auto;
+}
+
+.tp-preview-sheet + .tp-preview-sheet { margin-top: 22px; }
+.tp-page-label { font-size: 11px; color: var(--text-muted); margin: 0 0 8px; }
+
+.template-preview-stage .tp-full {
+  width: 100%;
+  height: auto;
   min-height: 673px;
-  flex: none;
+  overflow: visible;
   box-shadow: var(--shadow-md);
   border: 1px solid var(--border);
 }
@@ -3796,33 +3818,99 @@ select:focus-visible {
     content: ' · Page ' counter(page);
   }
 
-  body * {
-    visibility: hidden;
+  /* Printing needs normal block flow all the way from the document to the
+     root. Hidden screen chrome still occupied space, while scroll containers
+     and the absolutely positioned print area clipped every later page. */
+  body:has(.print-area) *:not(.print-area):not(.print-area *):not(:has(.print-area)) {
+    display: none !important;
   }
 
-  .print-area,
-  .print-area * {
-    visibility: visible;
+  html:has(.print-area),
+  body:has(.print-area),
+  body *:has(.print-area) {
+    display: block !important;
+    position: static !important;
+    float: none !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+    transform: none !important;
+    contain: none !important;
   }
 
-  .print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+  html .print-area,
+  html .print-area .doc-page,
+  html .print-area .doc-body,
+  html .print-area .ProseMirror {
+    display: block !important;
+    position: relative !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background-image: none !important;
+    transform: none !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
-  .doc-page {
-    box-shadow: none;
-    margin: 0;
-    width: 100%;
-    min-height: auto;
-    padding: 0.75in;
+  html .print-area .tableWrapper {
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
   }
 
-  .editor-workspace {
-    background: white;
-    background-image: none;
+  html .print-area table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    break-inside: auto;
+  }
+
+  html .print-area col { width: var(--print-column-width, auto) !important; }
+  html .print-area tr { break-inside: avoid; }
+  html .print-area th, html .print-area td { overflow-wrap: anywhere; }
+  html .print-area h1, html .print-area h2, html .print-area h3 { break-after: avoid; }
+  html .print-area p { orphans: 2; widows: 2; }
+  html .print-area .column-resize-handle,
+  html .print-area .row-resize-handle,
+  html .print-area .row-resize-target::after,
+  html .print-area .column-break-node::after,
+  html .print-area .selectedCell::after { display: none !important; }
+
+  html .print-area .page-break-node {
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    break-after: auto;
+    column-span: all;
+    break-before: page;
+  }
+
+  html .print-area .column-break-node {
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/react';
+import { validateDocumentContent } from './editor/validateDocument';
 import {
   DEFAULT_SETTINGS,
   TEMPLATES,
@@ -203,6 +204,15 @@ async function writeDocumentFile(path: string, data: string | Uint8Array) {
   }
 }
 
+async function selectFileWithFeedback(select: () => Promise<string | null>): Promise<string | null> {
+  try {
+    return await select();
+  } catch (error) {
+    await uiAlert(`Could not select the file. ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
+
 function suggestedSavePath(defaultDir: string, name: string, ext = 'docx') {
   const base = name.replace(/\.[^.]+$/, '') || 'Untitled';
   return joinPath(defaultDir, `${base}.${ext}`);
@@ -254,10 +264,14 @@ export default function App() {
   const [filePath, setFilePath] = useState<string | null>(null);
   const [fileName, setFileName] = useState('Untitled');
   const [isDirty, setDirtyState] = useState(false);
+  const dirtyRef = useRef(false);
   const documentGeneration = useRef(0);
   const documentRevision = useRef(0);
+  const openRequest = useRef(0);
+  const saveQueues = useRef(new Map<string, Promise<boolean>>());
   const setIsDirty = useCallback((dirty: boolean) => {
     if (dirty) documentRevision.current += 1;
+    dirtyRef.current = dirty;
     setDirtyState(dirty);
   }, []);
   const [ribbonTab, setRibbonTab] = useState<RibbonTab>('home');
@@ -568,7 +582,9 @@ export default function App() {
       if (ext === 'officewrite') {
         const raw = await getPlatform().readTextFile(path);
         try {
-          return unwrapOfficewriteFile(JSON.parse(raw));
+          const document = unwrapOfficewriteFile(JSON.parse(raw));
+          validateDocumentContent(document.content);
+          return document;
         } catch {
           await uiAlert('That .officewrite file is corrupted and could not be opened.');
           return null;
@@ -614,14 +630,17 @@ export default function App() {
 
   const openDocumentAtPath = useCallback(
     async (path: string) => {
+      const request = ++openRequest.current;
+      const generation = documentGeneration.current;
       const loaded = await readDocumentAt(path);
-      if (!loaded) return;
-      if (isDirty && !await uiConfirm('Discard unsaved changes and open another document? Choose Cancel to return and save your work.')) return;
+      if (!loaded || request !== openRequest.current || generation !== documentGeneration.current) return;
+      if (dirtyRef.current && !await uiConfirm('Discard unsaved changes and open another document? Choose Cancel to return and save your work.')) return;
+      if (request !== openRequest.current || generation !== documentGeneration.current) return;
       openDocumentEnvelope(loaded, path, getFileName(path));
       await updateRecentFile(path);
       await loadRevisions(path);
     },
-    [isDirty, readDocumentAt, openDocumentEnvelope, loadRevisions, updateRecentFile],
+    [readDocumentAt, openDocumentEnvelope, loadRevisions, updateRecentFile],
   );
 
   /**
@@ -644,61 +663,75 @@ export default function App() {
       const doc: DocumentEnvelope = editor
         ? { ...envelope, content: editor.getJSON() }
         : envelope;
+      const plainText = editor?.getText() ?? '';
 
-      try {
-        if (ext === 'docx') {
-          const docxBlob = await exportToDocx(doc.content, docxExportOpts(doc, fileName));
-          const arrayBuffer = await docxBlob.arrayBuffer();
-          await writeDocumentFile(targetPath, new Uint8Array(arrayBuffer));
-        } else if (ext === 'txt') {
-          await writeDocumentFile(targetPath, editor?.getText() ?? '');
-        } else if (ext === 'rtf') {
-          await writeDocumentFile(targetPath, exportToRtf(doc.content, fileName));
-        } else if (ext === 'html' || ext === 'htm') {
-          await writeDocumentFile(
-            targetPath,
-            exportToHtml(doc.content, doc.metadata.title || fileName, {
-              author: doc.metadata.author,
-              subject: doc.metadata.subject,
-            }),
-          );
-        } else if (ext === 'officewrite') {
-          const { content, metadata, ...extras } = doc;
-          const wrapped = wrapOfficewriteFile(content, metadata, extras);
-          await writeDocumentFile(targetPath, JSON.stringify(wrapped, null, 2));
-        } else {
-          // Previously the fallback branch: typing "Report.pdf" in the save
-          // dialog silently wrote a .officewrite JSON blob under that name.
-          await uiAlert(
-            `Cannot save as ".${ext || 'unknown'}". Choose .docx, .officewrite, .rtf, .html or .txt.`,
-          );
+      // Exporting can complete out of order too, so serialize the whole save
+      // pipeline by destination before beginning any format conversion.
+      const previous = saveQueues.current.get(targetPath) ?? Promise.resolve(true);
+      const save = previous.catch(() => false).then(async () => {
+
+        try {
+          if (ext === 'docx') {
+            const docxBlob = await exportToDocx(doc.content, docxExportOpts(doc, fileName));
+            const arrayBuffer = await docxBlob.arrayBuffer();
+            await writeDocumentFile(targetPath, new Uint8Array(arrayBuffer));
+          } else if (ext === 'txt') {
+            await writeDocumentFile(targetPath, plainText);
+          } else if (ext === 'rtf') {
+            await writeDocumentFile(targetPath, exportToRtf(doc.content, fileName));
+          } else if (ext === 'html' || ext === 'htm') {
+            await writeDocumentFile(
+              targetPath,
+              exportToHtml(doc.content, doc.metadata.title || fileName, {
+                author: doc.metadata.author,
+                subject: doc.metadata.subject,
+              }),
+            );
+          } else if (ext === 'officewrite') {
+            const { content, metadata, ...extras } = doc;
+            const wrapped = wrapOfficewriteFile(content, metadata, extras);
+            await writeDocumentFile(targetPath, JSON.stringify(wrapped, null, 2));
+          } else {
+            // Previously the fallback branch: typing "Report.pdf" in the save
+            // dialog silently wrote a .officewrite JSON blob under that name.
+            await uiAlert(
+              `Cannot save as ".${ext || 'unknown'}". Choose .docx, .officewrite, .rtf, .html or .txt.`,
+            );
+            return false;
+          }
+        } catch (error) {
+          await uiAlert(`Could not save the document. ${error instanceof Error ? error.message : String(error)}`);
           return false;
         }
-      } catch (error) {
-        await uiAlert(`Could not save the document. ${error instanceof Error ? error.message : String(error)}`);
-        return false;
-      }
 
-      // A version snapshot for every format, not just .officewrite. Since .docx is
-      // the default save format, Version History was empty for normal users.
-      await getPlatform()
-        .saveRevision(targetPath, doc, `Saved ${new Date().toLocaleString()}`)
-        .catch(() => undefined);
+        // A version snapshot for every format, not just .officewrite. Since .docx is
+        // the default save format, Version History was empty for normal users.
+        await getPlatform()
+          .saveRevision(targetPath, doc, `Saved ${new Date().toLocaleString()}`)
+          .catch(() => undefined);
 
-      if (adopt && generation === documentGeneration.current) {
-        setFilePath(targetPath);
-        setFileName(getFileName(targetPath));
-        // A save covers its captured snapshot. Typing or changing document
-        // properties while it writes must keep the newer work unsaved.
-        setDirtyState(revision !== documentRevision.current);
-        await loadRevisions(targetPath);
-        await updateRecentFile(targetPath);
+        if (adopt && generation === documentGeneration.current) {
+          setFilePath(targetPath);
+          setFileName(getFileName(targetPath));
+          // A save covers its captured snapshot. Typing or changing document
+          // properties while it writes must keep the newer work unsaved.
+          dirtyRef.current = revision !== documentRevision.current;
+          setDirtyState(dirtyRef.current);
+          await loadRevisions(targetPath);
+          await updateRecentFile(targetPath);
+        }
+        // Save-and-close may proceed only when this remains the saved document
+        // and no edits arrived while writing or updating its history.
+        return !adopt || (
+          generation === documentGeneration.current && revision === documentRevision.current
+        );
+      });
+      saveQueues.current.set(targetPath, save);
+      try {
+        return await save;
+      } finally {
+        if (saveQueues.current.get(targetPath) === save) saveQueues.current.delete(targetPath);
       }
-      // Save-and-close may proceed only when this remains the saved document
-      // and no edits arrived while writing or updating its history.
-      return !adopt || (
-        generation === documentGeneration.current && revision === documentRevision.current
-      );
     },
     [editor, envelope, fileName, loadRevisions, updateRecentFile],
   );
@@ -708,9 +741,11 @@ export default function App() {
       const generation = documentGeneration.current;
       let targetPath = pathOverride ?? filePath;
       if (!targetPath || forceDialog) {
-        const defaultDir = await getPlatform().getDefaultSaveDir();
-        const suggested = targetPath ?? suggestedSavePath(defaultDir, fileName, 'docx');
-        targetPath = await getPlatform().saveFile(suggested);
+        targetPath = await selectFileWithFeedback(async () => {
+          const defaultDir = await getPlatform().getDefaultSaveDir();
+          const suggested = targetPath ?? suggestedSavePath(defaultDir, fileName, 'docx');
+          return getPlatform().saveFile(suggested);
+        });
         if (!targetPath) return false;
       }
       if (generation !== documentGeneration.current) return false;
@@ -723,8 +758,10 @@ export default function App() {
   const exportDocumentAs = useCallback(
     async (ext: string) => {
       const generation = documentGeneration.current;
-      const defaultDir = await getPlatform().getDefaultSaveDir();
-      const path = await getPlatform().saveFile(suggestedSavePath(defaultDir, fileName, ext));
+      const path = await selectFileWithFeedback(async () => {
+        const defaultDir = await getPlatform().getDefaultSaveDir();
+        return getPlatform().saveFile(suggestedSavePath(defaultDir, fileName, ext));
+      });
       if (!path) return false;
       if (generation !== documentGeneration.current) return false;
       return writeDocumentTo(path, false);
@@ -798,7 +835,7 @@ export default function App() {
   );
 
   const handleInsertImage = useCallback(async () => {
-    const path = await getPlatform().openImageFile();
+    const path = await selectFileWithFeedback(() => getPlatform().openImageFile());
     if (!path || !editor) return;
     const ext = extOf(path);
     if (!['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
@@ -848,9 +885,11 @@ export default function App() {
   );
 
   const exportPdf = useCallback(async () => {
-    const defaultDir = await getPlatform().getDefaultSaveDir();
     const suggested = fileName.replace(/\.[^.]+$/, '') || 'Document';
-    const targetPath = await getPlatform().saveFile(joinPath(defaultDir, `${suggested}.pdf`));
+    const targetPath = await selectFileWithFeedback(async () => {
+      const defaultDir = await getPlatform().getDefaultSaveDir();
+      return getPlatform().saveFile(joinPath(defaultDir, `${suggested}.pdf`));
+    });
     if (!targetPath) return;
 
     applyPrintPageSetup(envelope.pageSetup, envelope.headerFooter);
@@ -866,6 +905,8 @@ export default function App() {
 
     try {
       await getPlatform().exportPdf(targetPath, pdfPageSize(envelope.pageSetup));
+    } catch (error) {
+      await uiAlert(`Could not export the PDF. ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setZoom(originalZoom);
     }
@@ -947,9 +988,15 @@ export default function App() {
     if (!stem || stem === current) return;
 
     const nextName = ext ? `${stem}.${ext}` : stem;
-    const nextPath = await getPlatform().renameFile(filePath, nextName);
+    let nextPath: string | null;
+    try {
+      nextPath = await getPlatform().renameFile(filePath, nextName);
+    } catch (error) {
+      await uiAlert(`Could not rename the document. ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
     if (!nextPath) {
-      await uiAlert(`There is already a file called ${nextName} in that folder.`);
+      await uiAlert(`Could not rename to ${nextName}. Check the name and whether another file already uses it.`);
       return;
     }
     setFilePath(nextPath);
@@ -968,7 +1015,13 @@ export default function App() {
     // Save first, or the copy is of whatever was last written rather than of
     // what is on screen.
     if (isDirty && !await saveDocument()) return;
-    const copyPath = await getPlatform().copyFile(filePath);
+    let copyPath: string | null;
+    try {
+      copyPath = await getPlatform().copyFile(filePath);
+    } catch (error) {
+      await uiAlert(`Could not copy the document. ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
     if (!copyPath) {
       await uiAlert('Officewrite could not create a copy.');
       return;
@@ -1059,7 +1112,7 @@ export default function App() {
 
   /** Select Recipients > Use an Existing List. */
   const pickExistingRecipientList = useCallback(async () => {
-    const path = await getPlatform().openDataFile();
+    const path = await selectFileWithFeedback(() => getPlatform().openDataFile());
     if (!path) return;
     let text: string;
     try {
@@ -1248,7 +1301,7 @@ export default function App() {
     () => ({
       onNew: () => newFromTemplate('blank'),
       onOpenFile: async () => {
-        const path = await getPlatform().openFile();
+        const path = await selectFileWithFeedback(() => getPlatform().openFile());
         if (path) await openDocumentAtPath(path);
       },
       onSave: () => void saveDocument(),
@@ -1534,7 +1587,7 @@ export default function App() {
       onCompareDocuments: () => {
         void (async () => {
           if (!editor) return;
-          const path = await getPlatform().openFile();
+          const path = await selectFileWithFeedback(() => getPlatform().openFile());
           if (!path) return;
           const other = await readDocumentAt(path);
           if (!other) return;
@@ -1655,7 +1708,7 @@ export default function App() {
       if (e.ctrlKey && key === 'o') {
         e.preventDefault();
         (async () => {
-          const path = await getPlatform().openFile();
+          const path = await selectFileWithFeedback(() => getPlatform().openFile());
           if (path) await openDocumentAtPath(path);
         })();
       }
@@ -1858,7 +1911,7 @@ export default function App() {
           settings={settings}
           onNewFromTemplate={newFromTemplate}
           onOpenFile={async () => {
-            const path = await getPlatform().openFile();
+            const path = await selectFileWithFeedback(() => getPlatform().openFile());
             if (path) await openDocumentAtPath(path);
           }}
           onOpenRecent={openDocumentAtPath}
@@ -2346,7 +2399,7 @@ export default function App() {
             setBackstageOpen(false);
           }}
           onOpen={async () => {
-            const path = await getPlatform().openFile();
+            const path = await selectFileWithFeedback(() => getPlatform().openFile());
             if (path) await openDocumentAtPath(path);
             setBackstageOpen(false);
           }}

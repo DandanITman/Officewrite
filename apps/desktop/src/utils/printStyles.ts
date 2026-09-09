@@ -2,6 +2,22 @@ import type { HeaderFooter, PageSetup } from '@officewrite/core';
 import { PAGE_DIMENSIONS, footerZonesOf, headerZonesOf } from '@officewrite/core';
 
 const STYLE_ID = 'officewrite-print-styles';
+let printListenerInstalled = false;
+
+/** Preserve relative column widths when a screen table is wider than the printed page. */
+function preparePrintedColumns() {
+  for (const table of document.querySelectorAll<HTMLTableElement>('.print-area table')) {
+    const columns = [...table.querySelectorAll<HTMLTableColElement>(':scope > colgroup > col')];
+    const widths = columns.map(column => Number.parseFloat(column.style.width));
+    const total = widths.reduce((sum, width) => sum + width, 0);
+    columns.forEach((column, index) => {
+      column.style.removeProperty('--print-column-width');
+      if (widths.every(width => Number.isFinite(width) && width > 0) && total > 0) {
+        column.style.setProperty('--print-column-width', `${widths[index] / total * 100}%`);
+      }
+    });
+  }
+}
 
 function escapeCss(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -21,6 +37,10 @@ function escapeCss(text: string): string {
  *    the page number as a CSS counter.
  */
 export function applyPrintPageSetup(pageSetup: PageSetup, headerFooter?: HeaderFooter) {
+  if (!printListenerInstalled) {
+    window.addEventListener('beforeprint', preparePrintedColumns);
+    printListenerInstalled = true;
+  }
   let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
   if (!el) {
     el = document.createElement('style');
@@ -106,6 +126,7 @@ export function applyPrintPageSetup(pageSetup: PageSetup, headerFooter?: HeaderF
   el.textContent = `
     @page {
       size: ${sizeRule}${orientation};
+      background: ${pageSetup.pageColor || '#fff'};
       margin: ${m.top / 96}in ${m.right / 96}in ${m.bottom / 96}in ${m.left / 96}in;
       ${headerBox}
       ${footerBox}
@@ -124,7 +145,11 @@ export function applyPrintPageSetup(pageSetup: PageSetup, headerFooter?: HeaderF
         min-height: 0 !important;
       }
       .doc-body {
-        column-count: ${pageSetup.columns.count} !important;
+        column-count: auto !important;
+        column-rule: none !important;
+      }
+      .doc-body .ProseMirror {
+        column-count: ${pageSetup.columns.count > 1 ? pageSetup.columns.count : 'auto'} !important;
         column-gap: ${pageSetup.columns.gap}px !important;
         min-height: 0 !important;
       }
@@ -133,7 +158,7 @@ export function applyPrintPageSetup(pageSetup: PageSetup, headerFooter?: HeaderF
       }
       ${
         pageSetup.columns.line
-          ? '.doc-body { column-rule: 1px solid #999 !important; }'
+          ? '.doc-body .ProseMirror { column-rule: 1px solid #999 !important; }'
           : ''
       }
       ${

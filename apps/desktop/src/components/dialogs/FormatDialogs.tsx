@@ -5,6 +5,7 @@ import { Dialog } from './Dialog';
 import { availableFonts } from '../../constants/fonts';
 import { FONT_SIZES, TEXT_EFFECTS, UNDERLINE_STYLES } from '../../extensions/CharacterFormatting';
 import type { RibbonState } from '../../ribbon/useRibbonState';
+import { cellSize, clearWidths, inToPx, pxToIn, setColumnWidth, setRowHeight } from '../../utils/tableSizing';
 
 /**
  * The dialogs behind the corner dialog launchers.
@@ -499,6 +500,8 @@ export function TablePropertiesDialog({
 }) {
   if (!open || !editor) return null;
   const chain = () => editor.chain().focus();
+  const cell = cellSize(editor);
+  const shading = editor.getAttributes(editor.isActive('tableHeader') ? 'tableHeader' : 'tableCell').shading;
 
   return (
     <Dialog title="Table Properties" onClose={onClose} testId="table-properties-dialog">
@@ -507,9 +510,15 @@ export function TablePropertiesDialog({
           Cell shading
           <input
             type="color"
-            value={'#ffffff'}
+            value={/^#[0-9a-f]{6}$/i.test(shading ?? '') ? shading : '#ffffff'}
             onChange={(event) => chain().setCellShading(event.target.value).run()}
           />
+        </label>
+        <label>Column width (inches)
+          <input type="number" min="0.25" max="22" step="0.1" defaultValue={pxToIn(cell.width)} onBlur={(event) => setColumnWidth(editor, inToPx(Number(event.target.value)))} />
+        </label>
+        <label>Minimum row height (inches)
+          <input type="number" min="0" max="22" step="0.1" defaultValue={pxToIn(cell.height)} onBlur={(event) => setRowHeight(editor, inToPx(Number(event.target.value)))} />
         </label>
         <label>
           Cell text alignment
@@ -534,13 +543,14 @@ export function TablePropertiesDialog({
           />
           Header row
         </label>
-        <button className="icon-btn" onClick={() => chain().fixTables().run()}>
+        <button className="icon-btn" onClick={() => clearWidths(editor)}>
           Reset column widths
         </button>
         <button className="icon-btn" onClick={() => chain().setCellShading(null).run()}>
           Clear cell shading
         </button>
       </div>
+      <p className="table-properties-help">Changes apply to the selected cells. Use Shift+click to select several cells, or Select to choose a row or column. Drag a cell border to resize it. Tab moves to the next cell and adds a row at the end; Shift+Tab moves back. A row height of 0 returns it to automatic sizing.</p>
     </Dialog>
   );
 }

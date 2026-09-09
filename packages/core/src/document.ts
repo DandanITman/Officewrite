@@ -61,10 +61,15 @@ export function createDocumentEnvelope(
 }
 
 export function parseOfficewriteFile(raw: unknown): DocumentEnvelope {
-  if (!raw || typeof raw !== 'object') {
-    return createDocumentEnvelope({ type: 'doc', content: [{ type: 'paragraph' }] });
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('Invalid Officewrite file: the document content is missing.');
   }
   const file = raw as OfficewriteDocument;
+  const content = file.content as { type?: unknown; content?: unknown } | null;
+  if (!content || typeof content !== 'object' || content.type !== 'doc'
+    || (content.content !== undefined && !Array.isArray(content.content))) {
+    throw new Error('Invalid Officewrite file: the document content is missing or malformed.');
+  }
   return createDocumentEnvelope(file.content, {
     metadata: file.metadata,
     // Files written before page colour, borders, line numbers and hyphenation

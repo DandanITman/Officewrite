@@ -14,6 +14,9 @@ test.describe('Electron main process', () => {
   test('boots and exposes the full host bridge', async () => {
     launched = await launchApp();
     const page = launched.window;
+    if (process.env.OFFICEWRITE_ELECTRON_EXECUTABLE) {
+      expect(await launched.app.evaluate(({ app }) => app.isPackaged)).toBe(true);
+    }
 
     await expect(page.getByTestId('app-shell')).toBeVisible();
 
@@ -137,6 +140,18 @@ test.describe('Electron main process', () => {
     }
     const listed = await launched.window.evaluate((folder) => window.officewrite.listDocuments(folder), path.dirname(target));
     expect(listed.map((file) => file.name).sort()).toEqual(['note (1).txt', 'note (2).txt', 'renamed.txt']);
+  });
+
+  test('concurrent copies reserve different filenames', async () => {
+    launched = await launchApp();
+    const source = path.join(launched.userDataDir, 'documents', 'original.txt');
+    const copies = await launched.window.evaluate(async (filePath) => {
+      await window.officewrite.writeFile(filePath, 'original content');
+      return Promise.all([window.officewrite.copyFile(filePath), window.officewrite.copyFile(filePath)]);
+    }, source);
+    expect(copies.every(Boolean)).toBe(true);
+    expect(new Set(copies).size).toBe(2);
+    for (const copy of copies) expect(readFileSync(copy!, 'utf8')).toBe('original content');
   });
 
   test('saves and restores a revision through the real store', async () => {

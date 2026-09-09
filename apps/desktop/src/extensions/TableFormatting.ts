@@ -1,4 +1,28 @@
 import { Extension } from '@tiptap/core';
+import { TableView } from '@tiptap/extension-table';
+import type { Node } from '@tiptap/pm/model';
+
+/** Resizable tables use their own DOM, so document styling must be applied here too. */
+export class StyledTableView extends TableView {
+  constructor(node: Node, cellMinWidth: number) {
+    super(node, cellMinWidth);
+    this.applyAppearance();
+  }
+
+  update(node: Node) {
+    const updated = super.update(node);
+    if (updated) this.applyAppearance();
+    return updated;
+  }
+
+  private applyAppearance() {
+    const style = TABLE_STYLES.find((entry) => entry.id === this.node.attrs.tableStyle)?.id ?? 'grid';
+    this.table.className = `doc-table style-${style}`;
+    this.table.dataset.tableStyle = style;
+    this.table.style.tableLayout = this.node.attrs.tableLayout === 'auto' ? 'auto' : 'fixed';
+    if (this.node.attrs.tableLayout === 'auto') this.table.style.width = 'auto';
+  }
+}
 
 /**
  * Table Design: the table style gallery, banded rows and cell shading.
@@ -26,6 +50,11 @@ export const TableFormatting = Extension.create({
       {
         types: ['table'],
         attributes: {
+          tableLayout: {
+            default: 'fixed',
+            parseHTML: (element) => element.style.tableLayout === 'auto' ? 'auto' : 'fixed',
+            renderHTML: (attributes) => ({ style: `table-layout: ${attributes.tableLayout === 'auto' ? 'auto' : 'fixed'}` }),
+          },
           tableStyle: {
             default: 'grid',
             parseHTML: (element) => element.getAttribute('data-table-style') ?? 'grid',
@@ -58,10 +87,7 @@ export const TableFormatting = Extension.create({
           commands.updateAttributes('table', { tableStyle: style }),
       setCellShading:
         (color: string | null) =>
-        ({ editor, commands }) =>
-          commands.updateAttributes(editor.isActive('tableHeader') ? 'tableHeader' : 'tableCell', {
-            shading: color,
-          }),
+        ({ commands }) => commands.setCellAttribute('shading', color),
     };
   },
 });

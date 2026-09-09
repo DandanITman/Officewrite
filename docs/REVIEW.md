@@ -1,6 +1,6 @@
 # End-to-end review
 
-Review date: 2026-09-09. Environment: Windows, Node.js 24.19.0, Chromium,
+Review version: 0.6.0. Date: 2026-09-09. Environment: Windows, Node.js 24.19.0, Chromium,
 Electron 39.8.10. CI uses Node.js 22.
 
 This review covers the existing feature set, source and production builds,
@@ -13,17 +13,17 @@ of automated test results.
 
 | Area | Evidence |
 | --- | --- |
-| Shared document logic | 122 passing unit tests: envelopes, accessibility, proofing, references, mail merge |
-| Document formats | 70 passing unit tests: DOCX import/export, malformed files, RTF Unicode/code pages, HTML, merge fields |
-| Renderer and browser-host logic | 143 passing unit tests: editor behavior, printing, table/paragraph behavior, search, storage failure paths |
-| Renderer features | 250 unique passing tests across the full run and focused follow-up runs exercise File, editing, ribbon state, keyboard commands, Insert/Layout/Review/View, references, tables, mailings, templates, edge cases, save races, and import errors |
-| Production browser | 4 passing tests load the built app with its real host: DOCX download/save/reopen after reload, preferences, OPFS copy/rename/delete, version history, and the PDF print-dialog route |
-| Visual regression | 27 passing Windows screenshot comparisons; no baselines replaced |
-| Native Electron | 13 passing tests cover PDF bytes, dictionaries, persistence, close guard, associations, version isolation, file operations, and print callback/error/page-range behavior |
-| Packaged Windows executable | Unpacked production build launches with app.isPackaged=true; editing, all four bundled dictionaries, and a real 17,103-byte PDF export pass |
+| Shared document logic | 128 passing unit tests: envelopes, accessibility, proofing, references, mail merge |
+| Document formats | 80 passing unit tests: DOCX import/export, table dimensions/styles, malformed files, RTF Unicode/code pages, HTML, merge fields |
+| Renderer and browser-host logic | 186 passing unit tests: editor behavior, all template schemas, styled template round-trips, switching table styles after DOCX reload, table/paragraph behavior, search, browser storage and native atomic-write failure paths |
+| Renderer features | 286 unique passing tests across the complete run (282) and four print-layout follow-ups exercise File, editing, ribbon state, keyboard commands, Insert/Layout/Review/View, references, tables, mailings, templates, edge cases, save races, import errors and actual PDF pagination; nine opt-in screenshot generators are skipped in the normal suite |
+| Production browser and website | 9 passing tests: real OPFS DOCX save/reopen, preferences, copy/rename/delete, version history, browser PDF print route, all nine tour images, Templates keyboard/phone-width access, installer links and release-API failure fallback |
+| Visual regression | 27 passing Windows screenshot comparisons; the redesigned gallery baseline was inspected and updated, with all other baselines retained |
+| Native Electron | 18 passing tests cover four dictionaries, persistence, close guard, command-line opening, version isolation, file operations, concurrent copying, print callback/error/page-range behavior, three styled template PDF exports and a long multi-page PDF through File > Export |
+| Packaged Windows executable | The same 18 tests pass against the unpacked production executable with app.isPackaged=true and isolated user data |
+| PDF appearance | Rendered and inspected every page of final native Invoice, Project Brief, Creative Brief and a four-page, 100-paragraph document: white margins, complete content, retained typography/table fills, no editor scrollbars or resize highlights |
 | Build and types | Desktop and browser builds and all TypeScript projects compile |
-| Website/release tooling | Source and complete built asset checks, JavaScript/YAML parsing, release-note success/error cases, release fallback and feature-tour keyboard behavior |
-| Project tooling | Project configuration loads in the installed command-line client; both repository skills pass the skill validator |
+| Website/release tooling | Source and complete built asset checks, synchronized versions, canonical release-note generation, and em-dash checks pass; all nine actual app screenshots regenerated |
 
 The browser harness uses a mocked host for repeatable UI tests. The separate
 production-browser suite uses real OPFS and localStorage. Operating-system file
@@ -32,6 +32,34 @@ not evidence that every printer or third-party document renders identically.
 
 ## Corrections made
 
+- Add eight templates and refresh the 31 existing designs. The gallery now has
+  39 designed templates plus a blank document, Creative filtering, counts, clear
+  filters, readable previews and keyboard focus handling. Template formatting
+  is stored in the document; representative DOCX round-trips retain it.
+- Add the website Templates tour tab and refresh the app screenshots.
+- Table insertion supports precise dimensions, an optional header and keyboard
+  operation. Styles render in the resizable view, selection addresses real
+  cells, merged-cell sizing respects spans and zoom, and row sorting preserves
+  headers and surrounding text. Table styles and dimensions survive DOCX.
+- Keep browser imports with identical names separate from existing documents
+  and preserve the right disk handle across Save As. Reject invalid names and
+  show picker, storage, rename, copy and export failures.
+- Replace native documents, PDFs, settings and recent-file lists only after a
+  complete temporary file has been flushed. Concurrent copies cannot overwrite
+  each other. Validate nested native nodes, marks and schema structure before
+  adopting a document, preventing silent conversion of malformed input to blank.
+- Recheck live dirty state after slow reads and ignore obsolete open requests.
+  Serialize the complete save pipeline per destination, including conversion,
+  so Save-and-close waits for the newest content to reach disk.
+- Preserve zero DOCX margins and paragraph spacing, paragraph border sides,
+  table shading, widths, heights and merged cells.
+- Store automatic DOCX table fills as conditional styles, keeping manual shading
+  separate so styles can still be changed after reopening. Preserve pasted RGB
+  colors as well as hexadecimal colors.
+- Print in normal document flow instead of inside fixed screen containers.
+  Remove canvas backgrounds, scrolling and resize decorations; retain table
+  proportions, continue long documents across pages, and honor explicit page
+  breaks in single-column and multicolumn layouts.
 - New/Open now requires an explicit discard decision before replacing unsaved
   content. Failed saves retain dirty state and show an error.
 - Failed deletion retains the open document and its edits; copying stops when
@@ -86,8 +114,7 @@ not evidence that every printer or third-party document renders identically.
   headers/footers, sections, macros, and other limits remain in FEATURES.md.
 - Production builds warn about the large editor bundle and a mixed static/dynamic
   hyperlink import. These warnings do not prevent a successful build.
-- The default installer-output folder encountered a local Windows EPERM during
-  unpacking. The same package build succeeded with an isolated temporary output
-  directory. Installation and uninstallation were not run.
-- Site/domain migration and a public installer release are separate explicit
-  operations. This review does not claim that either has been deployed.
+- Packaging uses an isolated temporary output directory for local checks.
+  Installation and uninstallation were not run.
+- Publication is recorded by the tagged GitHub release and Pages workflow;
+  local build results alone are not evidence of deployment.

@@ -118,7 +118,7 @@ export const TableRowResizing = TableRow.extend({
   },
 
   addProseMirrorPlugins() {
-    let dragging: { target: Target; startY: number; startHeight: number } | null = null;
+    let dragging: { target: Target; startY: number; startHeight: number; scale: number } | null = null;
 
     return [
       ...(this.parent?.() ?? []),
@@ -168,7 +168,7 @@ export const TableRowResizing = TableRow.extend({
           const dom = view.dom as HTMLElement;
 
           const onMouseMove = (event: MouseEvent) => {
-            if (dragging) return;
+            if (dragging || !view.editable) return;
             const target = targetUnder(view, event);
             const current = key.getState(view.state) ?? null;
             const next = target ? target.rowPos : null;
@@ -182,24 +182,26 @@ export const TableRowResizing = TableRow.extend({
           };
 
           const onMouseDown = (event: MouseEvent) => {
-            if (event.button !== 0 || dragging) return;
+            if (event.button !== 0 || dragging || !view.editable) return;
             const target = targetUnder(view, event);
             if (!target) return;
 
             // Claim the gesture before ProseMirror turns it into a selection.
             event.preventDefault();
             event.stopPropagation();
+            const scale = dom.offsetWidth ? dom.getBoundingClientRect().width / dom.offsetWidth : 1;
             dragging = {
               target,
               startY: event.clientY,
-              startHeight: target.rowDom.getBoundingClientRect().height,
+              startHeight: target.rowDom.getBoundingClientRect().height / (scale || 1),
+              scale: scale || 1,
             };
 
             const onDragMove = (move: MouseEvent) => {
               if (!dragging) return;
               const height = Math.max(
                 MIN_HEIGHT,
-                Math.round(dragging.startHeight + (move.clientY - dragging.startY)),
+                Math.round(dragging.startHeight + (move.clientY - dragging.startY) / dragging.scale),
               );
               // Preview on the element only - see the note at the top.
               dragging.target.rowDom.style.height = `${height}px`;

@@ -28,7 +28,7 @@ import { SuperscriptMark, SubscriptMark } from '../extensions/TextMarks';
 import { ParagraphFormatting } from '../extensions/ParagraphFormatting';
 import { CharacterFormatting } from '../extensions/CharacterFormatting';
 import { ListFormatting } from '../extensions/ListFormatting';
-import { TableFormatting } from '../extensions/TableFormatting';
+import { TableFormatting, StyledTableView } from '../extensions/TableFormatting';
 import { FormattingMarks } from '../extensions/FormattingMarks';
 import { ParkedSelection } from '../extensions/ParkedSelection';
 import { TableRowResizing } from '../extensions/TableRowResizing';
@@ -89,7 +89,7 @@ export function createExtensions(options: EditorExtensionOptions = {}): Extensio
     TextBox,
     InkDrawing,
     Placeholder.configure({ placeholder }),
-    Table.configure({ resizable: true }),
+    Table.configure({ resizable: true, View: StyledTableView }),
     TableRowResizing,
     TableHeader,
     TaskList,

@@ -14,6 +14,7 @@ telemetry and no account system.
 - Opens, edits and saves `.docx` files compatible with Microsoft Word
 - Ribbon interface with File, Home, Insert, Layout, References, Mailings, Review, View and Help; Draw appears when a drawing is selected
 - Paragraph and character styles, headings, and a custom style editor
+- 39 editable document templates plus a blank page, with searchable categories and readable previews
 - Tables with merge, split, row and column operations, and distributed sizing
 - Images and shapes with alignment and text wrapping
 - Track changes, comments, and accept/reject review workflow

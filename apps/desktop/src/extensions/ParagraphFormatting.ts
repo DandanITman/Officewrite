@@ -30,6 +30,7 @@ const BORDER_SIDE_PROPERTIES: Record<string, string[]> = {
   all: ['border'],
   top: ['border-top'],
   bottom: ['border-bottom'],
+  right: ['border-right'],
   outside: ['border'],
 };
 
@@ -43,8 +44,8 @@ function paragraphStyle(attrs: ParagraphFormattingAttrs) {
   const firstLine = Number(attrs.firstLineIndent ?? 0);
   if (firstLine) styles.push(`text-indent: ${firstLine}px`);
   if (attrs.lineHeight) styles.push(`line-height: ${attrs.lineHeight}`);
-  if (attrs.spaceBefore) styles.push(`margin-top: ${attrs.spaceBefore}px`);
-  if (attrs.spaceAfter) styles.push(`margin-bottom: ${attrs.spaceAfter}px`);
+  if (attrs.spaceBefore != null) styles.push(`margin-top: ${attrs.spaceBefore}px`);
+  if (attrs.spaceAfter != null) styles.push(`margin-bottom: ${attrs.spaceAfter}px`);
   if (attrs.borderColor) {
     const sides = BORDER_SIDE_PROPERTIES[attrs.borderSides ?? 'left'] ?? ['border-left'];
     for (const side of sides) styles.push(`${side}: 3px solid ${attrs.borderColor}`);
@@ -73,6 +74,7 @@ export const ParagraphFormatting = Extension.create({
               return {
                 ...(attrs.indentLevel ? { 'data-indent-level': attrs.indentLevel } : {}),
                 ...(attrs.styleId ? { 'data-style-id': attrs.styleId } : {}),
+                ...(attrs.borderSides ? { 'data-border-sides': attrs.borderSides } : {}),
                 ...(attrs.dropCap ? { 'data-drop-cap': 'true', class: 'has-drop-cap' } : {}),
                 ...(attrs.caption ? { 'data-caption': attrs.caption, class: 'doc-caption' } : {}),
                 ...(style ? { style } : {}),
@@ -109,7 +111,7 @@ export const ParagraphFormatting = Extension.create({
           },
           borderColor: {
             default: null,
-            parseHTML: (element) => element.style.borderLeftColor || null,
+            parseHTML: (element) => element.style.borderLeftColor || element.style.borderBottomColor || element.style.borderTopColor || element.style.borderRightColor || null,
             renderHTML: () => ({}),
           },
           borderSides: {

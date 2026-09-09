@@ -11,6 +11,7 @@ import {
   TableRow,
   HeightRule,
   TableCell,
+  TableLayoutType,
   WidthType,
   ImageRun,
   FootnoteReferenceRun,
@@ -36,6 +37,7 @@ import {
   type ISectionPropertiesOptions,
   type ParagraphChild,
 } from 'docx';
+import { TABLE_STYLE_IDS, BANDED_ROWS_WITHOUT_HEADER, tableStyleDefinitions } from './tableStyles';
 import type {
   DocumentComment,
   DocumentFootnote,
@@ -78,6 +80,15 @@ function pxToDxa(px: number) {
 function hex(color: unknown): string | undefined {
   const raw = String(color ?? '').trim();
   if (!raw) return undefined;
+  // DOM style parsing serializes pasted CSS colours as rgb(), even when the
+  // original HTML used hex. Keep those manual fills and text colours on save.
+  const rgb = raw.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
+  if (rgb) {
+    const values = rgb.slice(1).map(Number);
+    return values.every(value => value <= 255)
+      ? values.map(value => value.toString(16).padStart(2, '0')).join('').toUpperCase()
+      : undefined;
+  }
   const match = raw.match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i);
   if (!match) return undefined;
   const value = match[1];
@@ -375,18 +386,21 @@ function paragraphFormattingOptions(attrs: Record<string, unknown> = {}) {
   if (indentLevel > 0) {
     options.indent = { left: pxToDxa(indentLevel * 36) };
   }
-  if (attrs.lineHeight || attrs.spaceBefore || attrs.spaceAfter) {
-    options.spacing = {
-      ...(attrs.spaceBefore ? { before: pxToDxa(Number(attrs.spaceBefore)) } : {}),
-      ...(attrs.spaceAfter ? { after: pxToDxa(Number(attrs.spaceAfter)) } : {}),
-      ...(attrs.lineHeight ? { line: Math.round(Number(attrs.lineHeight) * 240) } : {}),
-    };
+  const spacing: Record<string, number> = {};
+  for (const [attribute, property] of [['spaceBefore', 'before'], ['spaceAfter', 'after']]) {
+    const value = Number(attrs[attribute]);
+    if (attrs[attribute] != null && Number.isFinite(value) && value >= 0) spacing[property] = pxToDxa(value);
   }
+  const lineHeight = Number(attrs.lineHeight);
+  if (Number.isFinite(lineHeight) && lineHeight > 0) spacing.line = Math.round(lineHeight * 240);
+  if (Object.keys(spacing).length) options.spacing = spacing;
   const borderColor = hex(attrs.borderColor);
   if (borderColor) {
-    options.border = {
-      left: { style: BorderStyle.SINGLE, color: borderColor, size: 8 },
-    };
+    const selected = String(attrs.borderSides ?? 'left');
+    const sides = selected === 'all' || selected === 'outside'
+      ? ['top', 'bottom', 'left', 'right']
+      : [(['top', 'bottom', 'left', 'right'].includes(selected) ? selected : 'left')];
+    options.border = Object.fromEntries(sides.map(side => [side, { style: BorderStyle.SINGLE, color: borderColor, size: 8 }]));
   }
   const shading = hex(attrs.shading);
   if (shading) {
@@ -567,6 +581,8 @@ function tableBlock(
   commentIds: CommentIndex = new Map(),
 ): Table {
   const rows: TableRow[] = [];
+  const tableStyle = String(node.attrs?.tableStyle ?? 'grid');
+  const hasHeader = !!node.content?.[0]?.content?.some((cell) => cell.type === 'tableHeader');
 
   for (const rowNode of node.content ?? []) {
     const cells: TableCell[] = [];
@@ -578,8 +594,13 @@ function tableBlock(
 
       // Cells may hold lists, images and nested tables - not just paragraphs.
       const cellChildren = blocksFromNodes(cellNode.content ?? [], idToNumber, 0, commentIds);
-      const shading = hex(attrs.backgroundColor);
-      const colwidth = Array.isArray(attrs.colwidth) ? Number(attrs.colwidth[0]) : undefined;
+      const header = cellNode.type === 'tableHeader';
+      const shading = hex(attrs.shading ?? attrs.backgroundColor);
+      const colwidth = Array.isArray(attrs.colwidth) ? attrs.colwidth.reduce((total: number, width: unknown) => total + (Number(width) || 0), 0) : undefined;
+      const rule = { style: BorderStyle.SINGLE, color: tableStyle === 'gridAccent' ? '93B4DB' : 'CBD5E1', size: 6 };
+      const none = { style: BorderStyle.NIL, size: 0 };
+      const noBorders = tableStyle === 'borderless' || tableStyle === 'plain';
+      const border = noBorders ? none : rule;
 
       cells.push(
         new TableCell({
@@ -590,6 +611,12 @@ function tableBlock(
             ? { width: { size: pxToDxa(colwidth), type: WidthType.DXA } }
             : {}),
           ...(shading ? { shading: { type: ShadingType.CLEAR, fill: shading } } : {}),
+          borders: {
+            top: border,
+            bottom: tableStyle === 'plain' && header ? rule : border,
+            left: tableStyle === 'listAccent' ? none : border,
+            right: tableStyle === 'listAccent' ? none : border,
+          },
         }),
       );
     }
@@ -609,6 +636,9 @@ function tableBlock(
   }
 
   return new Table({
+    style: tableStyle === 'bandedRows' && !hasHeader ? BANDED_ROWS_WITHOUT_HEADER : TABLE_STYLE_IDS[tableStyle] ?? TABLE_STYLE_IDS.grid,
+    tableLook: { firstRow: hasHeader, lastRow: false, firstColumn: false, lastColumn: false, noHBand: tableStyle !== 'bandedRows', noVBand: tableStyle !== 'bandedColumns' },
+    layout: node.attrs?.tableLayout === 'auto' ? TableLayoutType.AUTOFIT : TableLayoutType.FIXED,
     width: { size: 100, type: WidthType.PERCENTAGE },
     columnWidths: tableColumnWidths(node),
     rows,
@@ -970,7 +1000,7 @@ export async function exportToDocx(
     footnotes: Object.keys(docxFootnotes).length ? docxFootnotes : undefined,
     comments: docxComments.length ? { children: docxComments } : undefined,
     numbering: numberingConfig(),
-    styles: styleDefinitions(opts.customStyles),
+    styles: { ...styleDefinitions(opts.customStyles), importedStyles: tableStyleDefinitions() },
     sections: [section],
   });
 
