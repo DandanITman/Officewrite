@@ -107,6 +107,19 @@ export function Ribbon({
   const previous = useRef({ image: false, table: false, ink: false });
   /** The tab to come back to when an object is deselected. */
   const returnTab = useRef<RibbonTab>('home');
+  const tabStripRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    tabStripRef.current?.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [activeTab]);
+
+  // Reveal newly available object tools even before the user activates them.
+  useEffect(() => {
+    const tab = state.imageActive ? 'pictureFormat' : state.inkActive ? 'draw' : state.inTable ? 'tableLayout' : null;
+    if (tab) tabStripRef.current?.querySelector<HTMLElement>(`[data-tab="${tab}"]`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [state.imageActive, state.inkActive, state.inTable]);
 
   /**
    * The panel used to scroll sideways once the groups outgrew the window, so
@@ -246,8 +259,10 @@ export function Ribbon({
       {/* A tablist owes arrow-key navigation and a single tab stop. Without
           them Tab stepped through all eight tabs one at a time and the arrow
           keys did nothing, which is not how anyone drives a ribbon. */}
+      <div className="ribbon-tabs office-ribbon-tabs">
       <div
-        className="ribbon-tabs office-ribbon-tabs"
+        className="ribbon-tab-scroll"
+        ref={tabStripRef}
         role="tablist"
         aria-label="Ribbon"
         onKeyDown={onTabStripKeyDown}
@@ -306,6 +321,7 @@ export function Ribbon({
             {tab.label}
           </button>
         ))}
+      </div>
         <RibbonStripActions
           unresolvedComments={flags.unresolvedComments}
           commentsOpen={flags.commentsOpen}

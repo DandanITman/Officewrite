@@ -134,6 +134,41 @@ test.describe('Table tools', () => {
     });
   }
 
+  test('wide tab labels cannot hide table tools behind the strip actions', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 860 });
+    // Reproduce wider fallback-font metrics without depending on a host font.
+    await page.addStyleTag({ content: '.office-ribbon-tabs .ribbon-tab { letter-spacing: 1.5px; }' });
+    await insertTable(page);
+    const tab = page.getByTestId('ribbon-tab-tableLayout');
+    // The newly available tab must be revealed before any click scrolls it.
+    await expect.poll(() => tab.evaluate((button) => {
+      const bounds = button.getBoundingClientRect();
+      const strip = button.parentElement!.getBoundingClientRect();
+      return bounds.left >= strip.left - 1 && bounds.right <= strip.right + 1;
+    })).toBe(true);
+    await switchRibbonTab(page, 'tableLayout');
+    await expect(tab).toHaveAttribute('aria-selected', 'true');
+    const tabBounds = await tab.boundingBox();
+    const actions = await page.locator('.ribbon-strip-actions').boundingBox();
+    // Scroll offsets round to whole pixels while font measurements can be fractional.
+    expect(tabBounds!.x + tabBounds!.width).toBeLessThanOrEqual(actions!.x + 1);
+    await page.getByTestId('strip-comments').click();
+    await expect(page.getByTestId('strip-comments')).toHaveClass(/is-active/);
+    await page.getByTestId('strip-comments').click();
+    await page.getByTestId('strip-editing-mode').click();
+    await expect(page.getByTestId('editing-mode-menu')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.getByTestId('ribbon-collapse').click();
+    await expect(page.getByTestId('ribbon-layout-menu')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await tab.focus();
+    await page.keyboard.press('Home');
+    await expect(page.getByTestId('ribbon-tab-home')).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(tab).toBeFocused();
+    await expect(page.getByTestId('table-add-row-after')).toBeVisible();
+  });
+
   test('TC-TBL-001: the table tools appear only when the caret is in a table', async ({ page }) => {
     await switchRibbonTab(page, 'insert');
     await expect(page.getByTestId('ribbon-tab-tableLayout')).toHaveCount(0);

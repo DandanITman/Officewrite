@@ -1,6 +1,6 @@
 {
   "name": "officewrite",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": false,
   "description": "Officewrite: a free, open-source alternative to Microsoft Word, LibreOffice and OpenOffice. A non-profit educational project, open source for anyone to edit.",
   "workspaces": [

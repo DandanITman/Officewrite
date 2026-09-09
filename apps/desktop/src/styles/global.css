@@ -5792,12 +5792,16 @@ select:focus-visible {
 
 /* Tab strip: Comments, the editing-mode picker and the layout chevron. */
 .ribbon-strip-actions {
-  position: absolute;
-  right: 6px;
-  bottom: 3px;
+  flex: 0 0 auto;
+  align-self: center;
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.ribbon-strip-actions .ribbon-collapse {
+  position: static;
+  flex: 0 0 24px;
 }
 
 .strip-action {
@@ -5832,9 +5836,27 @@ select:focus-visible {
   text-align: center;
 }
 
-/* The tab strip reserves room on the right for the block above. */
+/* Actions take their actual width; overflowing tabs scroll within the space left. */
 .office-ribbon-tabs {
-  padding-right: 330px;
+  padding-right: 6px;
+}
+
+.ribbon-tab-scroll {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ribbon-tab-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.ribbon-tab-scroll .ribbon-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* Single Line Ribbon: one compact scrolling row rather than stacked groups.

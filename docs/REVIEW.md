@@ -1,6 +1,6 @@
 # End-to-end review
 
-Review version: 0.6.0. Date: 2026-09-09. Environment: Windows, Node.js 24.19.0, Chromium,
+Review version: 0.6.1. Date: 2026-09-09. Environment: Windows, Node.js 24.19.0, Chromium,
 Electron 39.8.10. CI uses Node.js 22.
 
 This review covers the existing feature set, source and production builds,
@@ -16,11 +16,11 @@ of automated test results.
 | Shared document logic | 128 passing unit tests: envelopes, accessibility, proofing, references, mail merge |
 | Document formats | 80 passing unit tests: DOCX import/export, table dimensions/styles, malformed files, RTF Unicode/code pages, HTML, merge fields |
 | Renderer and browser-host logic | 186 passing unit tests: editor behavior, all template schemas, styled template round-trips, switching table styles after DOCX reload, table/paragraph behavior, search, browser storage and native atomic-write failure paths |
-| Renderer features | 286 unique passing tests across the complete run (282) and four print-layout follow-ups exercise File, editing, ribbon state, keyboard commands, Insert/Layout/Review/View, references, tables, mailings, templates, edge cases, save races, import errors and actual PDF pagination; nine opt-in screenshot generators are skipped in the normal suite |
+| Renderer features | 287 unique passing tests across the complete run (282), four print-layout follow-ups and the new wide-label ribbon case exercise File, editing, ribbon state, keyboard commands, Insert/Layout/Review/View, references, tables, mailings, templates, edge cases, save races, import errors and actual PDF pagination; nine opt-in screenshot generators are skipped in the normal suite |
 | Production browser and website | 9 passing tests: real OPFS DOCX save/reopen, preferences, copy/rename/delete, version history, browser PDF print route, all nine tour images, Templates keyboard/phone-width access, installer links and release-API failure fallback |
 | Visual regression | 27 passing Windows screenshot comparisons; the redesigned gallery baseline was inspected and updated, with all other baselines retained |
 | Native Electron | 18 passing tests cover four dictionaries, persistence, close guard, command-line opening, version isolation, file operations, concurrent copying, print callback/error/page-range behavior, three styled template PDF exports and a long multi-page PDF through File > Export |
-| Packaged Windows executable | The same 18 tests pass against the unpacked production executable with app.isPackaged=true and isolated user data |
+| Packaged Windows executable | The same 18 tests pass against the unpacked 0.6.0 production executable with app.isPackaged=true and isolated user data, before the 0.6.1 ribbon layout correction |
 | PDF appearance | Rendered and inspected every page of final native Invoice, Project Brief, Creative Brief and a four-page, 100-paragraph document: white margins, complete content, retained typography/table fills, no editor scrollbars or resize highlights |
 | Build and types | Desktop and browser builds and all TypeScript projects compile |
 | Website/release tooling | Source and complete built asset checks, synchronized versions, canonical release-note generation, and em-dash checks pass; all nine actual app screenshots regenerated |
@@ -30,8 +30,19 @@ production-browser suite uses real OPFS and localStorage. Operating-system file
 pickers and printer callbacks are controlled in automated native tests; this is
 not evidence that every printer or third-party document renders identically.
 
+After the 0.6.1 ribbon correction, all 27 visual comparisons and eight focused
+renderer checks passed, including both narrow-width cases, wider tab labels,
+keyboard navigation and table AutoFit. Typechecking, the desktop build, site
+source validation and the em-dash check also passed. The tagged release workflow
+reruns the complete regression and Windows gates before publishing an installer.
+
 ## Corrections made
 
+- Separate the scrolling ribbon tab list from Comments, editing mode and layout
+  controls. The initial 0.6.0 Linux release run exposed overlap at 900px despite
+  passing local Windows tests; it passed 285 other renderer cases and the Windows
+  gate, but no installer was published. Add a wider-label regression that uses
+  ordinary clicks and keyboard navigation to cover font-dependent overflow.
 - Add eight templates and refresh the 31 existing designs. The gallery now has
   39 designed templates plus a blank document, Creative filtering, counts, clear
   filters, readable previews and keyboard focus handling. Template formatting
