@@ -1,6 +1,6 @@
 {
   "name": "@officewrite/desktop",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
   "description": "Officewrite: a free, open-source word processor and an alternative to Microsoft Word, LibreOffice and OpenOffice. A non-profit educational project.",
   "main": "dist-electron/main.js",
