@@ -8,6 +8,11 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Limit Dependabot to security-update pull requests and group fixes by package
+  ecosystem to reduce repeated test runs. Routine version updates are disabled.
+
 ### Documentation
 
 - Record the successful 0.6.2 Linux and Windows release gates and final test
