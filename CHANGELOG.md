@@ -14,7 +14,8 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   ecosystem to reduce repeated test runs. Routine version updates are disabled.
 - Treat document formatting as values rather than CSS declarations in HTML
   export, editor rendering and clipboard output. Validate fonts, colours,
-  alignment and dimensions, and restrict exported links to safe protocols.
+  alignment and dimensions, encode exported shape styles, and restrict exported
+  links to safe protocols.
 - Validate native page settings before they become print styles, and escape
   header/footer control characters while preserving page-number counters and
   older document defaults. Reject malformed or excessive layout settings.

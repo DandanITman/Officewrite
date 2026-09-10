@@ -182,7 +182,7 @@ function blockFromNode(node: TipTapNode): string {
     const w = finiteNumber(node.attrs?.width, 160);
     const h = finiteNumber(node.attrs?.height, 100);
     const fill = safeCssColor(node.attrs?.fill) ?? '#3b82f6';
-    return `<div class="doc-shape" style="width:${w}px;height:${h}px;background:${fill};display:inline-block;border:1px solid #1e40af;"></div>`;
+    return `<div class="doc-shape"${styleAttribute([`width:${w}px`, `height:${h}px`, `background:${fill}`, 'display:inline-block', 'border:1px solid #1e40af'])}></div>`;
   }
 
   if (node.content) {
