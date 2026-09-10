@@ -51,6 +51,24 @@ describe('grammar rules', () => {
     expect(issue?.suggestions).toEqual(['an']);
   });
 
+  it('checks whole repeated words across Unicode text and preserves correction offsets', () => {
+    expect(checkGrammar('An élan élan.').find((i) => i.rule === 'repeated-word')).toMatchObject({
+      from: 3, to: 12, text: 'élan élan', suggestions: ['élan'],
+    });
+    for (const input of ['αtest test', 'abcαa αa', 'word wordish', '123the the', 'the the123', '_the the']) {
+      expect(rules(input)).not.toContain('repeated-word');
+    }
+    expect(checkGrammar('AA aa aa aa').filter((i) => i.rule === 'repeated-word').map((i) => [i.from, i.to]))
+      .toEqual([[0, 5], [6, 11]]);
+  });
+
+  it('does not retry repeated-word matching inside long mixed-script words', () => {
+    const started = performance.now();
+    expect(checkGrammar('Aα'.repeat(50_000))).toEqual([]);
+    expect(rules('αA'.repeat(50_000))).toEqual(['sentence-capital']);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it('accepts an article that matches the following sound', () => {
     expect(rules('Eat an apple daily.')).not.toContain('article-agreement');
     expect(rules('It took an hour.')).not.toContain('article-agreement');
@@ -72,6 +90,22 @@ describe('grammar rules', () => {
     expect(rules('Done. now this.')).toContain('sentence-capital');
   });
 
+  it('preserves punctuation correction ranges and only consumes ordinary spaces', () => {
+    for (const punctuation of ',.;:!?') {
+      const issue = checkGrammar('Hello   ' + punctuation).find((i) => i.rule === 'space-before-punctuation');
+      expect(issue).toMatchObject({ from: 5, to: 9, text: '   ' + punctuation, suggestions: [punctuation] });
+    }
+    expect(rules('Hello\t,')).not.toContain('space-before-punctuation');
+    expect(rules('Hello\u00a0,')).not.toContain('space-before-punctuation');
+  });
+
+  it('handles long nonmatching space runs without stalling', () => {
+    const started = performance.now();
+    expect(checkGrammar(' '.repeat(100_000) + 'X')).toEqual([]);
+    expect(rules('Word' + ' '.repeat(100_000) + 'Next')).toEqual(['double-space']);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it('reports nothing for clean prose', () => {
     expect(checkGrammar('The quick brown fox jumps over the lazy dog.')).toEqual([]);
   });
@@ -82,9 +116,38 @@ describe('grammar rules', () => {
       expect(issues[i].from).toBeGreaterThanOrEqual(issues[i - 1].to);
     }
   });
+
+  it('retains many separate corrections without rescanning all earlier issues', () => {
+    const started = performance.now();
+    const issues = checkGrammar('Word , '.repeat(50_000));
+    expect(issues).toHaveLength(50_000);
+    expect(issues[0]).toMatchObject({ from: 4, to: 6, rule: 'space-before-punctuation' });
+    expect(issues[49_999]).toMatchObject({ from: 349_997, to: 349_999 });
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
 });
 
 describe('readability', () => {
+  it.each([
+    ['Hello!!World', 1],
+    ['Hello!! World? Again.', 3],
+    ['... \t !!\n??', 0],
+    ['Hello.\r\nWorld!', 2],
+    ['Hi.\u00a0Bye!\u2028Next?', 3],
+    ['One. Two!Three? Four', 3],
+  ])('preserves sentence boundaries in %j', (text, sentences) => {
+    expect(readabilityStats(text).sentences).toBe(sentences);
+  });
+
+  it('handles long punctuation runs followed by ordinary text without stalling', () => {
+    const punctuation = '.!?'.repeat(40_000);
+    const started = performance.now();
+    expect(readabilityStats(punctuation + 'Word').sentences).toBe(1);
+    expect(readabilityStats('Hello' + punctuation + ' World.').sentences).toBe(2);
+    expect(readabilityStats(punctuation).sentences).toBe(0);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it('counts words and sentences', () => {
     const stats = readabilityStats('The cat sat on the mat. It slept.');
     expect(stats.words).toBe(8);

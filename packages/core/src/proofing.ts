@@ -217,16 +217,17 @@ export function checkGrammar(text: string): ProofingIssue[] {
     if (issue.to > issue.from) issues.push(issue);
   };
 
-  // Repeated word: "the the".
-  const repeated = /\b(\p{L}{2,})(\s+)\1\b/giu;
+  // Repeated whole word: "the the". Unicode word boundaries prevent retries
+  // inside a long mixed-script word. Keep the leading boundary out of the issue.
+  const repeated = /(^|[^\p{L}\p{M}\p{N}_])(\p{L}{2,})(\s+)\2(?![\p{L}\p{M}\p{N}_])/giu;
   for (let m = repeated.exec(text); m; m = repeated.exec(text)) {
     push({
-      from: m.index,
+      from: m.index + m[1].length,
       to: m.index + m[0].length,
       kind: 'grammar',
-      text: m[0],
-      message: `Repeated word: "${m[1]}".`,
-      suggestions: [m[1]],
+      text: m[0].slice(m[1].length),
+      message: `Repeated word: "${m[2]}".`,
+      suggestions: [m[2]],
       rule: 'repeated-word',
     });
   }
@@ -246,15 +247,18 @@ export function checkGrammar(text: string): ProofingIssue[] {
   }
 
   // Space before a comma, full stop or other closing punctuation.
-  const spaceBeforePunct = / +([,.;:!?])/g;
+  // Match each complete run once, including runs not followed by punctuation.
+  const spaceBeforePunct = / +/g;
   for (let m = spaceBeforePunct.exec(text); m; m = spaceBeforePunct.exec(text)) {
+    const punctuation = text[m.index + m[0].length];
+    if (!punctuation || !',.;:!?'.includes(punctuation)) continue;
     push({
       from: m.index,
-      to: m.index + m[0].length,
+      to: m.index + m[0].length + 1,
       kind: 'grammar',
-      text: m[0],
+      text: m[0] + punctuation,
       message: 'Remove the space before the punctuation mark.',
-      suggestions: [m[1]],
+      suggestions: [punctuation],
       rule: 'space-before-punctuation',
     });
   }
@@ -327,7 +331,9 @@ export function checkGrammar(text: string): ProofingIssue[] {
   const ordered = issues.sort((a, b) => a.from - b.from || b.to - a.to);
   const kept: ProofingIssue[] = [];
   for (const issue of ordered) {
-    if (kept.some((existing) => issue.from < existing.to && existing.from < issue.to)) continue;
+    // Kept ranges are ordered and disjoint, so only the last can overlap.
+    const previous = kept[kept.length - 1];
+    if (previous && issue.from < previous.to) continue;
     kept.push(issue);
   }
   return kept;
@@ -357,7 +363,17 @@ function countSyllables(word: string): number {
 
 export function readabilityStats(text: string): ReadabilityStats {
   const words = text.trim() ? text.trim().split(/\s+/) : [];
-  const sentences = text.split(/[.!?]+(?:\s|$)/).filter((s) => s.trim().length > 0).length;
+  let sentences = 0;
+  let sentenceStart = 0;
+  // Inspect each punctuation run once; a rejected run cannot cause retries
+  // starting at every later punctuation character in the same run.
+  for (const match of text.matchAll(/[.!?]+/g)) {
+    const end = match.index + match[0].length;
+    if (end < text.length && !/\s/.test(text[end])) continue;
+    if (text.slice(sentenceStart, match.index).trim()) sentences += 1;
+    sentenceStart = end < text.length ? end + 1 : end;
+  }
+  if (text.slice(sentenceStart).trim()) sentences += 1;
   const syllables = words.reduce((total, word) => total + countSyllables(word), 0);
 
   if (!words.length || !sentences) {

@@ -10,6 +10,13 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- Process punctuation and space runs in grammar, readability and link-accessibility
+  checks without repeated regular-expression backtracking, keeping crafted long
+  document text from stalling these checks. Preserve correction ranges and counts.
+- Match repeated words at whole Unicode word boundaries so long mixed-script
+  words cannot cause repeated suffix scans or false corrections inside a word.
+  Filter overlapping grammar corrections using the last retained range instead
+  of repeatedly scanning every earlier issue.
 - Limit Dependabot to security-update pull requests and group fixes by package
   ecosystem to reduce repeated test runs. Routine version updates are disabled.
 - Treat document formatting as values rather than CSS declarations in HTML
@@ -41,6 +48,8 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Testing
 
+- Cover long nonmatching text runs and ordinary punctuation, whitespace and link
+  labels in the text-processing regressions.
 - Add regression coverage for document CSS and URL handling, blocked resources,
   table allocation limits, native page settings and production security policies.
   Serve the built site without development-script injection in browser tests.
