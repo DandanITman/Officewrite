@@ -137,7 +137,10 @@ export function checkAccessibility(doc: unknown, pageColor?: string | null): Acc
     if (node.type === 'text' && node.marks?.length) {
       const link = node.marks.find((mark) => mark.type === 'link');
       if (link) {
-        const label = (node.text ?? '').trim().toLowerCase().replace(/[.!?]+$/, '');
+        const rawLabel = (node.text ?? '').trim().toLowerCase();
+        let labelEnd = rawLabel.length;
+        while (labelEnd > 0 && '.!?'.includes(rawLabel[labelEnd - 1])) labelEnd -= 1;
+        const label = rawLabel.slice(0, labelEnd);
         if (!label) {
           push({
             rule: 'link-empty',

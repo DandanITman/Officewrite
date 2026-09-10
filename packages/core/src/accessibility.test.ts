@@ -113,6 +113,17 @@ describe('checkAccessibility', () => {
     expect(rules(checkAccessibility(coloured('#222222')))).not.toContain('contrast');
   });
 
+  it('handles long punctuation runs without stalling or losing link labels', () => {
+    const link = (label: string) =>
+      doc(para(text(label, [{ type: 'link', attrs: { href: 'https://example.com' } }])));
+    const punctuation = '.!?'.repeat(40_000);
+    const started = performance.now();
+    expect(rules(checkAccessibility(link(punctuation + 'destination')))).not.toContain('link-empty');
+    expect(rules(checkAccessibility(link('Click Here' + punctuation)))).toContain('link-text');
+    expect(rules(checkAccessibility(link(punctuation)))).toContain('link-empty');
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it('measures against the page colour when one is set', () => {
     const white = doc(para(text('x', [{ type: 'textStyle', attrs: { color: '#ffffff' } }])));
     // White on white is unreadable; white on near-black is fine.
