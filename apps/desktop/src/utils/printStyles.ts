@@ -1,5 +1,5 @@
 import type { HeaderFooter, PageSetup } from '@officewrite/core';
-import { PAGE_DIMENSIONS, footerZonesOf, headerZonesOf } from '@officewrite/core';
+import { PAGE_DIMENSIONS, completeHeaderFooter, completePageSetup, footerZonesOf, headerZonesOf } from '@officewrite/core';
 
 const STYLE_ID = 'officewrite-print-styles';
 let printListenerInstalled = false;
@@ -20,7 +20,8 @@ function preparePrintedColumns() {
 }
 
 function escapeCss(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return text.replace(/[\\"\u0000-\u001f\u007f]/g, (character) =>
+    `\\${character.charCodeAt(0).toString(16)} `);
 }
 
 /**
@@ -37,6 +38,9 @@ function escapeCss(text: string): string {
  *    the page number as a CSS counter.
  */
 export function applyPrintPageSetup(pageSetup: PageSetup, headerFooter?: HeaderFooter) {
+  // Check before touching the active stylesheet, including direct API callers.
+  pageSetup = completePageSetup(pageSetup);
+  headerFooter = completeHeaderFooter(headerFooter);
   if (!printListenerInstalled) {
     window.addEventListener('beforeprint', preparePrintedColumns);
     printListenerInstalled = true;

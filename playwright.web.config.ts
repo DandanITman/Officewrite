@@ -19,7 +19,7 @@ export default defineConfig({
     } : {}),
   },
   webServer: {
-    command: `npx vite docs --host localhost --port ${port} --strictPort`,
+    command: `npx vite preview --outDir docs --host localhost --port ${port} --strictPort`,
     url: `http://localhost:${port}/app/`,
     reuseExistingServer: false,
   },

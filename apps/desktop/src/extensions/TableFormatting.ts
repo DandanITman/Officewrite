@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core';
+import { safeCssColor } from '@officewrite/core';
 import { TableView } from '@tiptap/extension-table';
 import type { Node } from '@tiptap/pm/model';
 
@@ -71,8 +72,10 @@ export const TableFormatting = Extension.create({
           shading: {
             default: null,
             parseHTML: (element) => element.style.backgroundColor || null,
-            renderHTML: (attributes) =>
-              attributes.shading ? { style: `background-color: ${attributes.shading}` } : {},
+            renderHTML: (attributes) => {
+              const shading = safeCssColor(attributes.shading);
+              return shading ? { style: `background-color: ${shading}` } : {};
+            },
           },
         },
       },

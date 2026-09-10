@@ -12,9 +12,41 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 - Limit Dependabot to security-update pull requests and group fixes by package
   ecosystem to reduce repeated test runs. Routine version updates are disabled.
+- Treat document formatting as values rather than CSS declarations in HTML
+  export, editor rendering and clipboard output. Validate fonts, colours,
+  alignment and dimensions, and restrict exported links to safe protocols.
+- Validate native page settings before they become print styles, and escape
+  header/footer control characters while preserving page-number counters and
+  older document defaults. Reject malformed or excessive layout settings.
+- Bound DOCX table spans, column counts and the total logical table grid before
+  allocation; reject inconsistent vertical merges. Ordinary merged cells and
+  imported column widths retain their layout.
+- Block external document pictures in native files, HTML import, paste, editor
+  display and copied/exported HTML. Preserve an inert picture placeholder and
+  its source; embedded pictures continue to display. Text-box and shape colours
+  cannot load remote resources.
+- Add production content-security and no-referrer policies to the website,
+  browser editor and desktop renderer. Keep normal editing, embedded pictures,
+  website tours and installer download links available.
+- Update Electron to 44.3.0 to replace its vulnerable ZIP extraction dependency,
+  require Node.js 22.12.0 or newer for development, and adapt PDF margins to the
+  current API. Windows releases target 64-bit systems; file dialogs without an
+  explicit location now start in Downloads.
+- Update TipTap to 2.27.3 with its prototype-attribute fix, plus patched Sharp,
+  Vitest, XML, YAML and URI dependencies. The TipTap advisory's published version
+  range still flags the backported version despite regression coverage.
+- Pin workflow actions to immutable commits, limit checkout credentials and
+  deployment permissions, and add CodeQL analysis for pull requests and main.
+
+### Testing
+
+- Add regression coverage for document CSS and URL handling, blocked resources,
+  table allocation limits, native page settings and production security policies.
+  Serve the built site without development-script injection in browser tests.
 
 ### Documentation
 
+- Document private vulnerability reporting in SECURITY.md.
 - Record the successful 0.6.2 Linux and Windows release gates and final test
   counts in the end-to-end review.
 

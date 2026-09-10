@@ -1,6 +1,7 @@
 import Image from '@tiptap/extension-image';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { mergeAttributes } from '@tiptap/core';
+import { isEmbeddedImageSource, safeLayoutNumber } from '@officewrite/core';
 import { ImageBlockView } from '../components/ImageBlockView';
 
 /** The Wrap Text choices, in the order the menu lists them. */
@@ -67,6 +68,10 @@ export const ResizableImage = Image.extend({
 
     return {
       ...this.parent?.(),
+      src: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-blocked-image') ?? el.getAttribute('src'),
+      },
       width: {
         default: null,
         parseHTML: (el) => {
@@ -75,7 +80,10 @@ export const ResizableImage = Image.extend({
           const n = parseInt(String(w), 10);
           return Number.isNaN(n) ? null : n;
         },
-        renderHTML: (attrs) => (attrs.width ? { width: attrs.width, style: `width:${attrs.width}px` } : {}),
+        renderHTML: (attrs) => {
+          const width = safeLayoutNumber(attrs.width);
+          return width ? { width, style: `width:${width}px` } : {};
+        },
       },
       height: {
         default: null,
@@ -125,10 +133,16 @@ export const ResizableImage = Image.extend({
   },
 
   parseHTML() {
-    return [{ tag: 'img[src]' }];
+    return [{ tag: 'img[src]' }, { tag: 'span[data-blocked-image]' }];
   },
 
   renderHTML({ HTMLAttributes }) {
+    if (!isEmbeddedImageSource(HTMLAttributes.src)) {
+      const { src, ...attributes } = HTMLAttributes;
+      return ['span', mergeAttributes(attributes, {
+        'data-blocked-image': String(src ?? ''), class: 'blocked-document-image',
+      }), `Picture blocked${HTMLAttributes.alt ? `: ${HTMLAttributes.alt}` : ''}`];
+    }
     const filters: string[] = [];
     const brightness = Number(HTMLAttributes['data-brightness'] ?? 100);
     const contrast = Number(HTMLAttributes['data-contrast'] ?? 100);

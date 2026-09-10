@@ -2,6 +2,7 @@ export * from './types';
 export * from './defaults';
 export * from './pageSetup';
 export * from './document';
+export * from './documentSafety';
 export * from './styles';
 export * from './proofing';
 export * from './references';

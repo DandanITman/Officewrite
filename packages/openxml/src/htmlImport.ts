@@ -1,3 +1,5 @@
+import { inertDocumentHtml } from './inertHtml';
+
 export type TipTapNode = {
   type?: string;
   text?: string;
@@ -9,14 +11,6 @@ export type TipTapNode = {
 type Mark = { type: string; attrs?: Record<string, unknown> };
 
 const BLOCK_TAGS = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'PRE', 'DIV']);
-
-function getDomParser(): DOMParser {
-  const Ctor = (globalThis as { DOMParser?: typeof DOMParser }).DOMParser;
-  if (!Ctor) {
-    throw new Error('HTML import requires a DOM environment (DOMParser is unavailable).');
-  }
-  return new Ctor();
-}
 
 function styleMarks(el: HTMLElement): Mark[] {
   const textStyle: Record<string, unknown> = {};
@@ -77,8 +71,8 @@ function inlineOf(node: Node, marks: Mark[]): TipTapNode[] {
     return [{ type: 'mergeField', attrs: { kind: 'field', ...config, field: config.field ?? field } }];
   }
 
-  if (tag === 'IMG') {
-    const src = el.getAttribute('src');
+  if (tag === 'IMG' || el.hasAttribute('data-blocked-image')) {
+    const src = el.getAttribute('data-blocked-image') ?? el.getAttribute('src');
     if (!src) return [];
     const attrs: Record<string, unknown> = { src, alt: el.getAttribute('alt') ?? '' };
     const width = Number(el.getAttribute('width') ?? parseFloat(el.style.width));
@@ -168,7 +162,7 @@ function tableOf(el: HTMLElement): TipTapNode {
   return { type: 'table', content: rows };
 }
 
-function blocksOf(parent: HTMLElement): TipTapNode[] {
+function blocksOf(parent: ParentNode): TipTapNode[] {
   const out: TipTapNode[] = [];
   let pendingInline: Node[] = [];
 
@@ -265,8 +259,8 @@ function blocksOf(parent: HTMLElement): TipTapNode[] {
  * opening a .html file hit the "Unsupported file type" branch.
  */
 export function importFromHtml(html: string): TipTapNode {
-  const doc = getDomParser().parseFromString(html, 'text/html');
-  const content = blocksOf(doc.body);
+  const template = inertDocumentHtml(html);
+  const content = blocksOf(template.content);
   if (!content.length) content.push({ type: 'paragraph' });
   return { type: 'doc', content };
 }

@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core';
+import { safeCssColor, safeCssLength, safeLayoutNumber, safeTextAlignment } from '@officewrite/core';
 
 type ParagraphFormattingAttrs = {
   textAlign?: string | null;
@@ -36,22 +37,27 @@ const BORDER_SIDE_PROPERTIES: Record<string, string[]> = {
 
 function paragraphStyle(attrs: ParagraphFormattingAttrs) {
   const styles: string[] = [];
-  if (attrs.textAlign && attrs.textAlign !== 'left') styles.push(`text-align: ${attrs.textAlign}`);
-  const indentLevel = Number(attrs.indentLevel ?? 0);
+  const align = safeTextAlignment(attrs.textAlign);
+  if (align && align !== 'left') styles.push(`text-align: ${align}`);
+  const indentLevel = safeLayoutNumber(attrs.indentLevel, 0, 0, 100);
   if (indentLevel > 0) styles.push(`margin-left: ${indentLevel * 36}px`);
-  const indentRight = Number(attrs.indentRight ?? 0);
+  const indentRight = safeLayoutNumber(attrs.indentRight);
   if (indentRight > 0) styles.push(`margin-right: ${indentRight}px`);
-  const firstLine = Number(attrs.firstLineIndent ?? 0);
+  const firstLine = safeLayoutNumber(attrs.firstLineIndent, 0, -10000);
   if (firstLine) styles.push(`text-indent: ${firstLine}px`);
-  if (attrs.lineHeight) styles.push(`line-height: ${attrs.lineHeight}`);
-  if (attrs.spaceBefore != null) styles.push(`margin-top: ${attrs.spaceBefore}px`);
-  if (attrs.spaceAfter != null) styles.push(`margin-bottom: ${attrs.spaceAfter}px`);
-  if (attrs.borderColor) {
-    const sides = BORDER_SIDE_PROPERTIES[attrs.borderSides ?? 'left'] ?? ['border-left'];
-    for (const side of sides) styles.push(`${side}: 3px solid ${attrs.borderColor}`);
+  const lineHeight = safeCssLength(attrs.lineHeight, true);
+  if (lineHeight) styles.push(`line-height: ${lineHeight}`);
+  if (attrs.spaceBefore != null) styles.push(`margin-top: ${safeLayoutNumber(attrs.spaceBefore)}px`);
+  if (attrs.spaceAfter != null) styles.push(`margin-bottom: ${safeLayoutNumber(attrs.spaceAfter)}px`);
+  const borderColor = safeCssColor(attrs.borderColor);
+  if (borderColor) {
+    const key = attrs.borderSides ?? 'left';
+    const sides = Object.hasOwn(BORDER_SIDE_PROPERTIES, key) ? BORDER_SIDE_PROPERTIES[key] : ['border-left'];
+    for (const side of sides) styles.push(`${side}: 3px solid ${borderColor}`);
     styles.push('padding-left: 10px');
   }
-  if (attrs.shading) styles.push(`background-color: ${attrs.shading}`, 'padding-top: 2px', 'padding-bottom: 2px');
+  const shading = safeCssColor(attrs.shading);
+  if (shading) styles.push(`background-color: ${shading}`, 'padding-top: 2px', 'padding-bottom: 2px');
   return styles.join('; ');
 }
 

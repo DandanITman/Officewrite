@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
+import { isEmbeddedImageSource } from '@officewrite/core';
 import type { ImageFrame, ImageWrap } from '../extensions/ResizableImage';
 
 type Align = 'left' | 'center' | 'right';
@@ -332,7 +333,7 @@ export function ImageBlockView({ node, updateAttributes, selected, editor, getPo
       onClick={select}
     >
       <div className="image-block-inner">
-        <img
+        {isEmbeddedImageSource(src) ? <img
           ref={imgRef}
           src={src}
           alt={alt ?? ''}
@@ -352,8 +353,16 @@ export function ImageBlockView({ node, updateAttributes, selected, editor, getPo
               });
             }
           }}
-        />
-        {selected && (
+        /> : <span
+          className="blocked-document-image"
+          role="img"
+          aria-label={alt || 'Blocked picture'}
+          style={{ display: 'inline-block', padding: 12, border: '1px dashed #64748b', maxWidth: 480 }}
+        >
+          Picture blocked. Insert a local copy to include it.
+          {alt ? <span style={{ display: 'block' }}>{alt}</span> : null}
+        </span>}
+        {selected && isEmbeddedImageSource(src) && (
           <>
             <button
               type="button"

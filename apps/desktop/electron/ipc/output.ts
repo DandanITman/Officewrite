@@ -50,7 +50,7 @@ export function registerOutputIpc(getWindow: () => BrowserWindow | null) {
       // renderer injects for the document's page setup.
       preferCSSPageSize: true,
       pageSize: (pageSize as 'A4' | 'Letter' | 'Legal') ?? 'Letter',
-      margins: { marginType: 'none' },
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
     });
 
     if (savePath) {

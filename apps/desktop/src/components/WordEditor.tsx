@@ -3,6 +3,7 @@ import type { Editor } from '@tiptap/react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { DocumentFootnote, HeaderFooter, PageSetup, Watermark } from '@officewrite/core';
 import { PAGE_DIMENSIONS, footerZonesOf, headerZonesOf, zonesEmpty } from '@officewrite/core';
+import { inertDocumentHtml } from '@officewrite/openxml';
 import { createExtensions } from '../editor/extensions';
 import { trackChangesPlugin, trackChangesKey } from '../editor/trackChangesPlugin';
 import { proofingIssueAt, type DocumentProofingIssue } from '../extensions/ProofingCheck';
@@ -163,6 +164,7 @@ export function WordEditor({
       }
     },
     editorProps: {
+      transformPastedHTML: (html) => inertDocumentHtml(html).innerHTML,
       attributes: {
         spellcheck: 'false',
         class: 'prose-editor',

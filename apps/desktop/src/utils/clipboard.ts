@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/react';
+import { inertDocumentHtml } from '@officewrite/openxml';
 
 /**
  * Clipboard actions for the ribbon buttons.
@@ -82,7 +83,7 @@ export async function pasteFromClipboard(
       for (const item of items) {
         if (item.types.includes('text/html')) {
           const html = await (await item.getType('text/html')).text();
-          editor.commands.insertContent(html);
+          editor.commands.insertContent(inertDocumentHtml(html).innerHTML);
           return true;
         }
       }

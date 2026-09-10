@@ -1,4 +1,5 @@
 import { useRef, type CSSProperties } from 'react';
+import { safeCssColor } from '@officewrite/core';
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 
 /**
@@ -82,8 +83,8 @@ export function TextBoxView({ node, updateAttributes, selected }: NodeViewProps)
   const style: CSSProperties = {
     width,
     ...(height ? { minHeight: height } : {}),
-    background: fill,
-    borderColor,
+    backgroundColor: safeCssColor(fill) ?? '#ffffff',
+    borderColor: safeCssColor(borderColor) ?? '#8faadc',
     marginLeft: offsetX,
     marginTop: offsetY,
     // Arrange's Bring Forward / Send Backward writes this; without it here the

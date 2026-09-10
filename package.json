@@ -28,7 +28,7 @@
     "build:web": "npm run build:web -w @officewrite/desktop"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0"

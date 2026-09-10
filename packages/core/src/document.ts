@@ -1,7 +1,6 @@
 import type { OfficewriteDocument, DocumentMetadata } from './types';
 import {
-  DEFAULT_HEADER_FOOTER,
-  DEFAULT_PAGE_SETUP,
+  completeHeaderFooter,
   completePageSetup,
   type DocumentComment,
   type DocumentFootnote,
@@ -45,8 +44,8 @@ export function createDocumentEnvelope(
       modified: now,
     },
     content,
-    pageSetup: partial?.pageSetup ?? { ...DEFAULT_PAGE_SETUP, margins: { ...DEFAULT_PAGE_SETUP.margins } },
-    headerFooter: partial?.headerFooter ?? { ...DEFAULT_HEADER_FOOTER },
+    pageSetup: completePageSetup(partial?.pageSetup),
+    headerFooter: completeHeaderFooter(partial?.headerFooter),
     comments: partial?.comments ?? [],
     trackChangesEnabled: partial?.trackChangesEnabled ?? false,
     watermark: partial?.watermark ?? { ...DEFAULT_WATERMARK },
@@ -74,7 +73,7 @@ export function parseOfficewriteFile(raw: unknown): DocumentEnvelope {
     metadata: file.metadata,
     // Files written before page colour, borders, line numbers and hyphenation
     // existed carry only some of PageSetup; fill the rest from the defaults.
-    pageSetup: file.pageSetup ? completePageSetup(file.pageSetup) : undefined,
+    pageSetup: file.pageSetup,
     headerFooter: file.headerFooter,
     comments: file.comments,
     trackChangesEnabled: file.trackChangesEnabled,
