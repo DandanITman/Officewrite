@@ -1,4 +1,5 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
+import { safeCssColor } from '@officewrite/core';
 
 const SHAPES = ['rect', 'circle', 'triangle', 'line', 'arrow'] as const;
 
@@ -7,8 +8,8 @@ export function ShapeBlockView({ node, updateAttributes, selected, editor, getPo
     shapeType,
     width,
     height,
-    fill,
-    stroke,
+    fill: rawFill,
+    stroke: rawStroke,
     strokeWidth,
     align = 'left',
     wrap = 'inline',
@@ -25,6 +26,8 @@ export function ShapeBlockView({ node, updateAttributes, selected, editor, getPo
     z?: number;
   };
 
+  const fill = safeCssColor(rawFill) ?? '#d9e7f3';
+  const stroke = safeCssColor(rawStroke) ?? '#2f5496';
   const renderSvg = () => {
     const sw = strokeWidth;
     switch (shapeType) {

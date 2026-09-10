@@ -1,4 +1,4 @@
-import { mergeFieldLabel, type MergeFieldAttrs } from '@officewrite/core';
+import { isEmbeddedImageSource, mergeFieldLabel, safeCssColor, safeCssLength as cssLength, safeFontFamily, safeTextAlignment as alignment, safeExportHref, type MergeFieldAttrs } from '@officewrite/core';
 
 type TipTapNode = {
   type?: string;
@@ -14,6 +14,16 @@ function escapeHtml(text: string) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function styleAttribute(styles: string[]): string {
+  return styles.length ? ` style="${escapeHtml(styles.join(';'))}"` : '';
+}
+
+function finiteNumber(value: unknown, fallback: number, max = 10000): number {
+  if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 && number <= max ? number : fallback;
 }
 
 function wrapMarks(text: string, marks: TipTapNode['marks']): string {
@@ -33,12 +43,12 @@ function wrapMarks(text: string, marks: TipTapNode['marks']): string {
         result = `<s>${result}</s>`;
         break;
       case 'link': {
-        const href = String(mark.attrs?.href ?? '#');
-        result = `<a href="${escapeHtml(href)}">${result}</a>`;
+        const href = safeExportHref(mark.attrs?.href);
+        if (href) result = `<a href="${escapeHtml(href)}">${result}</a>`;
         break;
       }
       case 'highlight': {
-        const color = String(mark.attrs?.color ?? '#fef08a');
+        const color = safeCssColor(mark.attrs?.color) ?? '#fef08a';
         result = `<mark style="background:${escapeHtml(color)}">${result}</mark>`;
         break;
       }
@@ -50,10 +60,13 @@ function wrapMarks(text: string, marks: TipTapNode['marks']): string {
         break;
       case 'textStyle': {
         const styles: string[] = [];
-        if (mark.attrs?.fontFamily) styles.push(`font-family:${mark.attrs.fontFamily}`);
-        if (mark.attrs?.fontSize) styles.push(`font-size:${mark.attrs.fontSize}`);
-        if (mark.attrs?.color) styles.push(`color:${mark.attrs.color}`);
-        if (styles.length) result = `<span style="${styles.join(';')}">${result}</span>`;
+        const family = safeFontFamily(mark.attrs?.fontFamily);
+        if (family) styles.push(`font-family:${family}`);
+        const size = cssLength(mark.attrs?.fontSize);
+        const color = safeCssColor(mark.attrs?.color);
+        if (size) styles.push(`font-size:${size}`);
+        if (color) styles.push(`color:${color}`);
+        if (styles.length) result = `<span${styleAttribute(styles)}>${result}</span>`;
         break;
       }
       case 'commentAnchor':
@@ -96,17 +109,17 @@ function inlineFromNode(node: TipTapNode): string {
 
 function blockFromNode(node: TipTapNode): string {
   if (node.type === 'paragraph') {
-    const align = node.attrs?.textAlign as string | undefined;
+    const align = alignment(node.attrs?.textAlign);
     const styles = paragraphStyles(node.attrs);
     if (align && align !== 'left') styles.unshift(`text-align:${align}`);
-    const style = styles.length ? ` style="${styles.join(';')}"` : '';
+    const style = styleAttribute(styles);
     return `<p${style}>${inlineFromNode(node) || '&nbsp;'}</p>`;
   }
 
   if (node.type === 'heading') {
-    const level = Math.min(6, Math.max(1, Number(node.attrs?.level ?? 1)));
+    const level = Math.min(6, Math.max(1, Math.floor(finiteNumber(node.attrs?.level, 1))));
     const styles = paragraphStyles(node.attrs);
-    const style = styles.length ? ` style="${styles.join(';')}"` : '';
+    const style = styleAttribute(styles);
     return `<h${level}${style}>${inlineFromNode(node)}</h${level}>`;
   }
 
@@ -152,18 +165,24 @@ function blockFromNode(node: TipTapNode): string {
   }
 
   if (node.type === 'image') {
-    const src = escapeHtml(String(node.attrs?.src ?? ''));
+    const source = node.attrs?.src;
     const alt = escapeHtml(String(node.attrs?.alt ?? ''));
-    const width = node.attrs?.width ? ` width="${Number(node.attrs.width)}"` : '';
-    const align = node.attrs?.align ? ` style="float:${node.attrs.align === 'center' ? 'none' : node.attrs.align};display:block;margin:${node.attrs.align === 'center' ? '0 auto' : '0'};"` : '';
-    return `<img src="${src}" alt="${alt}"${width}${align} />`;
+    if (!isEmbeddedImageSource(source)) {
+      return `<span data-blocked-image="${escapeHtml(String(source ?? ''))}">[Picture blocked${alt ? `: ${alt}` : ''}]</span>`;
+    }
+    const widthValue = finiteNumber(node.attrs?.width, 0);
+    const width = widthValue ? ` width="${widthValue}"` : '';
+    const align = alignment(node.attrs?.align);
+    const styles = align && ['left', 'center', 'right'].includes(align)
+      ? [`float:${align === 'center' ? 'none' : align}`, 'display:block', `margin:${align === 'center' ? '0 auto' : '0'}`] : [];
+    return `<img src="${escapeHtml(source)}" alt="${alt}"${width}${styleAttribute(styles)} />`;
   }
 
   if (node.type === 'docShape') {
-    const w = Number(node.attrs?.width ?? 160);
-    const h = Number(node.attrs?.height ?? 100);
-    const fill = escapeHtml(String(node.attrs?.fill ?? '#3b82f6'));
-    return `<div class="doc-shape" style="width:${w}px;height:${h}px;background:${fill};display:inline-block;border:1px solid #1e40af;"></div>`;
+    const w = finiteNumber(node.attrs?.width, 160);
+    const h = finiteNumber(node.attrs?.height, 100);
+    const fill = safeCssColor(node.attrs?.fill) ?? '#3b82f6';
+    return `<div class="doc-shape"${styleAttribute([`width:${w}px`, `height:${h}px`, `background:${fill}`, 'display:inline-block', 'border:1px solid #1e40af'])}></div>`;
   }
 
   if (node.content) {
@@ -176,13 +195,16 @@ function blockFromNode(node: TipTapNode): string {
 function paragraphStyles(attrs: TipTapNode['attrs']) {
   const styles: string[] = [];
   if (!attrs) return styles;
-  const indentLevel = Number(attrs.indentLevel ?? 0);
+  const indentLevel = finiteNumber(attrs.indentLevel, 0, 100);
   if (indentLevel > 0) styles.push(`margin-left:${indentLevel * 36}px`);
-  if (attrs.lineHeight) styles.push(`line-height:${escapeHtml(String(attrs.lineHeight))}`);
-  if (attrs.spaceBefore) styles.push(`margin-top:${Number(attrs.spaceBefore)}px`);
-  if (attrs.spaceAfter) styles.push(`margin-bottom:${Number(attrs.spaceAfter)}px`);
-  if (attrs.borderColor) styles.push(`border-left:3px solid ${escapeHtml(String(attrs.borderColor))}`, 'padding-left:10px');
-  if (attrs.shading) styles.push(`background:${escapeHtml(String(attrs.shading))}`, 'padding-top:2px', 'padding-bottom:2px');
+  const lineHeight = attrs.lineHeight === 'normal' ? 'normal' : cssLength(attrs.lineHeight, true);
+  if (lineHeight) styles.push(`line-height:${lineHeight}`);
+  if (attrs.spaceBefore) styles.push(`margin-top:${finiteNumber(attrs.spaceBefore, 0)}px`);
+  if (attrs.spaceAfter) styles.push(`margin-bottom:${finiteNumber(attrs.spaceAfter, 0)}px`);
+  const borderColor = safeCssColor(attrs.borderColor);
+  const shading = safeCssColor(attrs.shading);
+  if (borderColor) styles.push(`border-left:3px solid ${borderColor}`, 'padding-left:10px');
+  if (shading) styles.push(`background:${shading}`, 'padding-top:2px', 'padding-bottom:2px');
   return styles;
 }
 

@@ -1,4 +1,5 @@
 import TableRow from '@tiptap/extension-table-row';
+import { safeLayoutNumber } from '@officewrite/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 
@@ -111,8 +112,10 @@ export const TableRowResizing = TableRow.extend({
           const value = parseInt(raw ?? '', 10);
           return Number.isFinite(value) && value > 0 ? value : null;
         },
-        renderHTML: (attributes) =>
-          attributes.height ? { style: `height: ${attributes.height}px` } : {},
+        renderHTML: (attributes) => {
+          const height = safeLayoutNumber(attributes.height);
+          return height ? { style: `height: ${height}px` } : {};
+        },
       },
     };
   },

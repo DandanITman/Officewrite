@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core';
+import { safeCssLength } from '@officewrite/core';
 
 /**
  * The run-level formatting the Font group offers beyond bold and italic:
@@ -60,15 +61,17 @@ export const CharacterFormatting = Extension.create({
           fontSize: {
             default: null,
             parseHTML: (element) => element.style.fontSize?.replace(/['"]+/g, '') || null,
-            renderHTML: (attributes) =>
-              attributes.fontSize ? { style: `font-size: ${attributes.fontSize}` } : {},
+            renderHTML: (attributes) => {
+              const size = safeCssLength(attributes.fontSize);
+              return size ? { style: `font-size: ${size}` } : {};
+            },
           },
           underlineStyle: {
             default: null,
             parseHTML: (element) => element.getAttribute('data-underline') || null,
             renderHTML: (attributes) => {
               const style = attributes.underlineStyle as UnderlineStyle | null;
-              if (!style || style === 'single') return {};
+              if (!style || style === 'single' || !Object.hasOwn(UNDERLINE_CSS, style)) return {};
               return {
                 'data-underline': style,
                 style: `text-decoration: ${UNDERLINE_CSS[style] ?? 'underline'}`,
@@ -94,7 +97,7 @@ export const CharacterFormatting = Extension.create({
             parseHTML: (element) => element.getAttribute('data-text-effect') || null,
             renderHTML: (attributes) => {
               const effect = attributes.textEffect as TextEffect | null;
-              if (!effect || effect === 'none') return {};
+              if (!effect || effect === 'none' || !TEXT_EFFECTS.some(entry => entry.id === effect)) return {};
               return { 'data-text-effect': effect, class: `text-effect-${effect}` };
             },
           },

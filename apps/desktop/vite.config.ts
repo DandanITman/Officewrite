@@ -18,6 +18,27 @@ function emitAsIndexHtml(outDir: string): Plugin {
   };
 }
 
+/** Production pages load application code locally and never execute document scripts. */
+function contentSecurityPolicy(): Plugin {
+  return {
+    name: 'officewrite-content-security-policy',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler: () => [{
+        tag: 'meta',
+        attrs: {
+          'http-equiv': 'Content-Security-Policy',
+          content: "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'",
+        },
+        injectTo: 'head-prepend',
+      }, {
+        tag: 'meta', attrs: { name: 'referrer', content: 'no-referrer' }, injectTo: 'head-prepend',
+      }],
+    },
+  };
+}
+
 /**
  * Three build modes share this config:
  *
@@ -39,6 +60,7 @@ export default defineConfig(({ mode }) => ({
   ...(mode === 'web' ? { publicDir: path.resolve(__dirname, 'public-web') } : {}),
   plugins: [
     react(),
+    contentSecurityPolicy(),
     ...(mode === 'web' ? [emitAsIndexHtml(WEB_OUT_DIR)] : []),
     ...(mode === 'test' || mode === 'web'
       ? []

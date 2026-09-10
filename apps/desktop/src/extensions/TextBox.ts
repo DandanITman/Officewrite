@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core';
+import { safeCssColor, safeLayoutNumber } from '@officewrite/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { TextBoxView } from '../components/TextBoxView';
 
@@ -68,7 +69,7 @@ export const TextBox = Node.create({
         'data-wrap': String(attrs.wrap),
         'data-z': String(attrs.z ?? 0),
         class: `doc-text-box style-${String(attrs.boxStyle)}`,
-        style: `width:${Number(attrs.width)}px;background:${String(attrs.fill)};border:1px solid ${String(attrs.borderColor)}`,
+        style: `width:${safeLayoutNumber(attrs.width, 280)}px;background-color:${safeCssColor(attrs.fill) ?? '#ffffff'};border:1px solid ${safeCssColor(attrs.borderColor) ?? '#8faadc'}`,
       }),
       0,
     ];

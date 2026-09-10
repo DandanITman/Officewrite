@@ -65,4 +65,5 @@ export type { DocxImportResult, TipTapNode };
 export { exportToDocx, type DocxExportOptions };
 export { exportToRtf, importFromRtf } from './rtf';
 export { exportToHtml, importFromHtml } from './html';
+export { inertDocumentHtml } from './inertHtml';
 export { importFromDocText } from './importDoc';

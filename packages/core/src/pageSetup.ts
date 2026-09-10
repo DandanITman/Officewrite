@@ -1,3 +1,5 @@
+import { safeCssColor } from './documentSafety';
+
 export type PageSizePreset = 'letter' | 'a4' | 'legal' | 'a5' | 'executive' | 'tabloid';
 export type PageOrientation = 'portrait' | 'landscape';
 
@@ -191,14 +193,99 @@ export function contentWidth(pageSetup: PageSetup): number {
   return width - pageSetup.margins.left - pageSetup.margins.right;
 }
 
-/** Normalise a partially-specified page setup, e.g. one read from an old file. */
-export function completePageSetup(partial?: Partial<PageSetup> | null): PageSetup {
+function settingsObject(value: unknown, name: string): Record<string, unknown> {
+  if (value === undefined) return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Invalid document settings: ${name} must be an object.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function settingNumber(value: unknown, fallback: number, name: string, min: number, max: number, integer = false): number {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max
+    || (integer && !Number.isInteger(value))) {
+    throw new Error(`Invalid document settings: ${name} must be ${integer ? 'an integer' : 'a number'} between ${min} and ${max}.`);
+  }
+  return value;
+}
+
+function settingChoice<T extends string>(value: unknown, fallback: T, choices: readonly T[], name: string): T {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'string' || !choices.includes(value as T)) {
+    throw new Error(`Invalid document settings: ${name} is not supported.`);
+  }
+  return value as T;
+}
+
+function settingBoolean(value: unknown, fallback: boolean, name: string): boolean {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'boolean') throw new Error(`Invalid document settings: ${name} must be true or false.`);
+  return value;
+}
+
+function settingColor(value: unknown, fallback: string, name: string): string {
+  if (value === undefined) return fallback;
+  const color = safeCssColor(value);
+  if (color === null) throw new Error(`Invalid document settings: ${name} must be a plain colour.`);
+  return color;
+}
+
+/**
+ * Complete older settings without letting file content become CSS syntax.
+ * Limits allow up to 22-inch spacing, 100 columns and a one-inch border.
+ */
+export function completePageSetup(partial?: unknown): PageSetup {
+  const setup = settingsObject(partial ?? undefined, 'pageSetup');
+  const margins = settingsObject(setup.margins, 'margins');
+  const columns = settingsObject(setup.columns, 'columns');
+  const border = settingsObject(setup.border, 'border');
   return {
-    ...DEFAULT_PAGE_SETUP,
-    ...partial,
-    margins: { ...DEFAULT_PAGE_SETUP.margins, ...partial?.margins },
-    columns: { ...DEFAULT_PAGE_SETUP.columns, ...partial?.columns },
-    border: { ...NO_PAGE_BORDER, ...partial?.border },
-    pageColor: partial?.pageColor ?? null,
+    size: settingChoice(setup.size, DEFAULT_PAGE_SETUP.size, ['letter', 'a4', 'legal', 'a5', 'executive', 'tabloid'], 'size'),
+    orientation: settingChoice(setup.orientation, DEFAULT_PAGE_SETUP.orientation, ['portrait', 'landscape'], 'orientation'),
+    margins: {
+      // DOCX permits signed top/bottom margins; retain them as numeric values.
+      top: settingNumber(margins.top, DEFAULT_PAGE_SETUP.margins.top, 'margins.top', -2112, 2112),
+      bottom: settingNumber(margins.bottom, DEFAULT_PAGE_SETUP.margins.bottom, 'margins.bottom', -2112, 2112),
+      left: settingNumber(margins.left, DEFAULT_PAGE_SETUP.margins.left, 'margins.left', 0, 2112),
+      right: settingNumber(margins.right, DEFAULT_PAGE_SETUP.margins.right, 'margins.right', 0, 2112),
+    },
+    columns: {
+      count: settingNumber(columns.count, DEFAULT_PAGE_SETUP.columns.count, 'columns.count', 1, 100, true),
+      gap: settingNumber(columns.gap, DEFAULT_PAGE_SETUP.columns.gap, 'columns.gap', 0, 2112),
+      line: settingBoolean(columns.line, DEFAULT_PAGE_SETUP.columns.line, 'columns.line'),
+    },
+    border: {
+      style: settingChoice(border.style, NO_PAGE_BORDER.style, ['none', 'solid', 'dashed', 'dotted', 'double'], 'border.style'),
+      color: settingColor(border.color, NO_PAGE_BORDER.color, 'border.color'),
+      width: settingNumber(border.width, NO_PAGE_BORDER.width, 'border.width', 0, 96),
+    },
+    pageColor: setup.pageColor === undefined || setup.pageColor === null ? null : settingColor(setup.pageColor, '#ffffff', 'pageColor'),
+    lineNumbers: settingChoice(setup.lineNumbers, DEFAULT_PAGE_SETUP.lineNumbers, ['none', 'continuous', 'restartEachPage'], 'lineNumbers'),
+    hyphenation: settingBoolean(setup.hyphenation, DEFAULT_PAGE_SETUP.hyphenation, 'hyphenation'),
+  };
+}
+
+/** Preserve legacy centre strings and partial zones, requiring actual text. */
+export function completeHeaderFooter(partial?: unknown): HeaderFooter {
+  const value = settingsObject(partial ?? undefined, 'headerFooter');
+  const text = (input: unknown, name: string): string => {
+    if (input === undefined) return '';
+    if (typeof input !== 'string') throw new Error(`Invalid document settings: ${name} must be text.`);
+    return input;
+  };
+  const zones = (input: unknown, name: string): HeaderFooterZones => {
+    const zone = settingsObject(input, name);
+    return { left: text(zone.left, `${name}.left`), center: text(zone.center, `${name}.center`), right: text(zone.right, `${name}.right`) };
+  };
+  return {
+    header: text(value.header, 'header'),
+    footer: text(value.footer, 'footer'),
+    showPageNumbers: settingBoolean(value.showPageNumbers, false, 'showPageNumbers'),
+    ...(value.headerZones === undefined ? {} : { headerZones: zones(value.headerZones, 'headerZones') }),
+    ...(value.footerZones === undefined ? {} : { footerZones: zones(value.footerZones, 'footerZones') }),
+    ...(value.differentFirstPage === undefined ? {} : {
+      differentFirstPage: settingBoolean(value.differentFirstPage, false, 'differentFirstPage'),
+    }),
   };
 }

@@ -251,6 +251,8 @@ interface RunContext {
   commentIdByNumber: Map<string, string>;
   /** Comment ranges currently open at this point in the document. */
   openComments: Set<string>;
+  /** Shared by every table, including nested tables, in this import. */
+  remainingTableSlots: number;
 }
 
 /** Convert the runs of a paragraph (or hyperlink) into inline nodes. */
@@ -422,7 +424,56 @@ function paragraphNode(p: XmlNode, ctx: RunContext, styleName: string | undefine
   return { type: 'paragraph', attrs, content: content.length ? content : undefined };
 }
 
+const MAX_TABLE_COLUMNS = 1000;
+const MAX_DOCUMENT_TABLE_SLOTS = 100_000;
+
+function tableSpan(tc: XmlNode): number {
+  const declared = child(child(tc, 'w:tcPr'), 'w:gridSpan');
+  if (!declared) return 1;
+  const raw = attr(declared, 'w:val');
+  // OOXML decimal integers only: Number() also accepts exponents and fractions.
+  if (raw === undefined || !/^\+?[0-9]+$/.test(raw.trim())) {
+    throw new Error('Invalid DOCX: table gridSpan must be a positive decimal integer.');
+  }
+  const span = Number(raw.trim());
+  if (!Number.isSafeInteger(span) || span < 1 || span > MAX_TABLE_COLUMNS) {
+    throw new Error(`Invalid DOCX: table gridSpan must be between 1 and ${MAX_TABLE_COLUMNS}.`);
+  }
+  return span;
+}
+
+/**
+ * Reserve the full logical grid before allocating widths or processing merges.
+ * Count rectangular grid slots, since the editor expands short rows to the
+ * widest row. A span sum alone would miss that downstream amplification.
+ */
+function reserveTableSlots(tbl: XmlNode, ctx: RunContext): void {
+  if (children(child(tbl, 'w:tblGrid'), 'w:gridCol').length > MAX_TABLE_COLUMNS) {
+    throw new Error(`Invalid DOCX: tables may have at most ${MAX_TABLE_COLUMNS} columns.`);
+  }
+  let width = 1;
+  let reserved = 0;
+  for (const [rowIndex, tr] of children(tbl, 'w:tr').entries()) {
+    let column = 0;
+    for (const tc of children(tr, 'w:tc')) {
+      column += tableSpan(tc);
+      if (column > MAX_TABLE_COLUMNS) {
+        throw new Error(`Invalid DOCX: table rows may have at most ${MAX_TABLE_COLUMNS} columns.`);
+      }
+    }
+    width = Math.max(width, column);
+    const required = width * (rowIndex + 1);
+    const additional = required - reserved;
+    if (additional > ctx.remainingTableSlots) {
+      throw new Error(`Invalid DOCX: tables exceed the document limit of ${MAX_DOCUMENT_TABLE_SLOTS} logical cells.`);
+    }
+    ctx.remainingTableSlots -= additional;
+    reserved = required;
+  }
+}
+
 function tableNode(tbl: XmlNode, ctx: RunContext, styleOf: (p: XmlNode) => string | undefined): TipTapNode {
+  reserveTableSlots(tbl, ctx);
   const rows: TipTapNode[] = [];
   const grid = children(child(tbl, 'w:tblGrid'), 'w:gridCol').map((column) => twipsToPx(attr(column, 'w:w') ?? '0'));
   const merges = new Map<number, { node: TipTapNode; row: number }>();
@@ -434,14 +485,16 @@ function tableNode(tbl: XmlNode, ctx: RunContext, styleOf: (p: XmlNode) => strin
 
     for (const tc of children(tr, 'w:tc')) {
       const tcPr = child(tc, 'w:tcPr');
-      const rawSpan = Number(val(tcPr, 'w:gridSpan') ?? 1);
-      const span = Number.isFinite(rawSpan) && rawSpan > 0 ? Math.floor(rawSpan) : 1;
+      const span = tableSpan(tc);
       const merge = child(tcPr, 'w:vMerge');
       // Continuations extend their originating cell instead of leaving holes
       // that the editor would repair by inserting blank cells.
       if (merge && attr(merge, 'w:val') !== 'restart') {
         const origin = merges.get(column);
         if (origin) {
+          if (span !== (origin.node.attrs?.colspan ?? 1)) {
+            throw new Error('Invalid DOCX: vertically merged cells must span the same columns.');
+          }
           origin.node.attrs = { ...origin.node.attrs, rowspan: rowIndex - origin.row + 1 };
           column += span;
           continue;
@@ -449,7 +502,7 @@ function tableNode(tbl: XmlNode, ctx: RunContext, styleOf: (p: XmlNode) => strin
       }
 
       const cellAttrs: Record<string, unknown> = {};
-      if (Number.isFinite(span) && span > 1) cellAttrs.colspan = span;
+      if (span > 1) cellAttrs.colspan = span;
 
       const width = attr(child(tcPr, 'w:tcW'), 'w:w');
       if (width && attr(child(tcPr, 'w:tcW'), 'w:type') === 'dxa') {
@@ -697,6 +750,7 @@ export async function importDocx(data: ArrayBuffer | Uint8Array): Promise<DocxIm
     footnoteNumberById: numberById,
     commentIdByNumber,
     openComments: new Set(),
+    remainingTableSlots: MAX_DOCUMENT_TABLE_SLOTS,
   };
 
   // pkg.document is already the <w:document> element, not a wrapper around it.

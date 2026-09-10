@@ -1,10 +1,7 @@
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
-import TextAlign from '@tiptap/extension-text-align';
 import TextStyle from '@tiptap/extension-text-style';
-import Color from '@tiptap/extension-color';
-import FontFamily from '@tiptap/extension-font-family';
-import Highlight from '@tiptap/extension-highlight';
+import { SafeTextAlign, SafeColor, SafeFontFamily, SafeHighlight } from '../extensions/SafeTextFormatting';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import Table from '@tiptap/extension-table';
@@ -75,15 +72,15 @@ export function createExtensions(options: EditorExtensionOptions = {}): Extensio
     Underline,
     TextStyle,
     CharacterFormatting,
-    Color,
-    FontFamily,
-    Highlight.configure({ multicolor: true }),
+    SafeColor,
+    SafeFontFamily,
+    SafeHighlight.configure({ multicolor: true }),
     SuperscriptMark,
     SubscriptMark,
     ParagraphFormatting,
     ListFormatting,
     ParkedSelection,
-    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    SafeTextAlign.configure({ types: ['heading', 'paragraph'] }),
     Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
     ResizableImage,
     TextBox,
