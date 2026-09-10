@@ -8,6 +8,10 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-09-10
+
+Security and reliability update for the Windows application and browser editor.
+
 ### Security
 
 - Process punctuation and space runs in grammar, readability and link-accessibility
@@ -59,6 +63,12 @@ Officewrite uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 - Document private vulnerability reporting in SECURITY.md.
 - Record the successful 0.6.2 Linux and Windows release gates and final test
   counts in the end-to-end review.
+
+### Release
+
+- Synchronize all workspace versions, lockfile and website metadata at 0.6.3.
+- The Windows installer remains unsigned. Physical printing and installer
+  installation/uninstallation were not exercised by the automated app tests.
 
 ## [0.6.2] - 2026-09-09
 
